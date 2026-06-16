@@ -5,20 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Travel Agent ✈️</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',system-ui,sans-serif;background:#eef2f7;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-
-    /* ── Header ── */
     header{background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2)}
     header .logo{font-size:22px}
     header h1{font-size:17px;font-weight:700;letter-spacing:.3px}
-
-    /* ── Layout ── */
+    header .badge{margin-left:auto;font-size:11px;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:20px;font-weight:500}
     .layout{display:flex;flex:1;overflow:hidden}
-
-    /* ── Sidebar ── */
-    aside{width:230px;background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;padding:14px;gap:10px;overflow-y:auto;flex-shrink:0}
+    aside{width:230px;background:#fff;border-right:1px solid #87b5f1;display:flex;flex-direction:column;padding:14px;gap:10px;overflow-y:auto;flex-shrink:0}
     aside h2{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;font-weight:600}
     #new-btn{background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:500}
     #new-btn:hover{background:#1e40af}
@@ -26,11 +23,7 @@
     .c-item{padding:8px 10px;border-radius:7px;font-size:13px;color:#374151;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:none;background:none;text-align:left;width:100%}
     .c-item:hover{background:#f1f5f9}
     .c-item.active{background:#eff6ff;color:#1d4ed8;font-weight:500}
-
-    /* ── Main ── */
-    .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-
-    /* ── Auth bar ── */
+    .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
     #auth-bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0}
     #auth-bar input{padding:7px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;outline:none;width:130px;transition:border .15s}
     #auth-bar input:focus{border-color:#1d4ed8}
@@ -42,61 +35,45 @@
     #auth-status{font-size:13px;color:#64748b;flex:1}
     #logout-btn{padding:6px 12px;background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;font-size:12px;cursor:pointer;display:none;font-weight:500}
     #logout-btn:hover{background:#fecaca}
-
-    /* ── Messages ── */
     #messages{flex:1;overflow-y:auto;padding:22px 18px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
-
-    /* ── Bubbles ── */
     .row{display:flex;align-items:flex-end;gap:8px}
     .row.user{flex-direction:row-reverse}
     .row.assistant{flex-direction:row}
-
     .avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
     .row.user .avatar{background:#1d4ed8;color:#fff}
     .row.assistant .avatar{background:#f1f5f9;border:1px solid #e2e8f0}
-
     .bubble{max-width:76%;padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.7;word-break:break-word}
     .row.user .bubble{background:#1d4ed8;color:#fff;border-bottom-right-radius:3px}
     .row.assistant .bubble{background:#fff;color:#1e293b;border:1px solid #e2e8f0;border-bottom-left-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
     .row.system{justify-content:center}
     .row.system .bubble{background:#fef9c3;color:#92400e;font-size:13px;border-radius:10px;max-width:90%;padding:8px 14px;border:none}
-
-    /* Markdown inside assistant bubbles */
-    .bubble.assistant h1{font-size:19px;margin:14px 0 6px;color:#1d4ed8;font-weight:700}
-    .bubble.assistant h2{font-size:15px;margin:14px 0 5px;color:#1e40af;border-bottom:1px solid #e2e8f0;padding-bottom:5px;font-weight:600}
-    .bubble.assistant h3{font-size:14px;margin:12px 0 4px;color:#1e293b;font-weight:600}
-    .bubble.assistant p{margin:5px 0}
-    .bubble.assistant ul,.bubble.assistant ol{padding-left:20px;margin:5px 0}
-    .bubble.assistant li{margin:4px 0}
-    .bubble.assistant table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
-    .bubble.assistant th{background:#eff6ff;padding:8px 12px;border:1px solid #bfdbfe;text-align:left;font-weight:600;color:#1e40af}
-    .bubble.assistant td{padding:7px 12px;border:1px solid #e2e8f0}
-    .bubble.assistant tr:nth-child(even) td{background:#f8fafc}
-    .bubble.assistant hr{border:none;border-top:1px solid #e2e8f0;margin:14px 0}
-    .bubble.assistant strong{color:#1e293b;font-weight:600}
-    .bubble.assistant code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;font-family:monospace}
-    .bubble.assistant blockquote{border-left:3px solid #bfdbfe;padding-left:12px;color:#64748b;margin:8px 0;font-style:italic}
-
-    /* Typing indicator */
+    .bubble h1{font-size:19px;margin:14px 0 6px;color:#1d4ed8;font-weight:700}
+    .bubble h2{font-size:15px;margin:14px 0 5px;color:#1e40af;border-bottom:1px solid #e2e8f0;padding-bottom:5px;font-weight:600}
+    .bubble h3{font-size:14px;margin:12px 0 4px;color:#1e293b;font-weight:600}
+    .bubble p{margin:5px 0}
+    .bubble ul,.bubble ol{padding-left:20px;margin:5px 0}
+    .bubble li{margin:4px 0}
+    .bubble table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+    .bubble th{background:#eff6ff;padding:8px 12px;border:1px solid #bfdbfe;text-align:left;font-weight:600;color:#1e40af}
+    .bubble td{padding:7px 12px;border:1px solid #e2e8f0}
+    .bubble tr:nth-child(even) td{background:#f8fafc}
+    .bubble hr{border:none;border-top:1px solid #e2e8f0;margin:14px 0}
+    .bubble strong{color:#1e293b;font-weight:600}
+    .bubble code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:12px;font-family:monospace}
+    .bubble blockquote{border-left:3px solid #bfdbfe;padding-left:12px;color:#64748b;margin:8px 0;font-style:italic}
     .typing{display:flex;align-items:center;gap:6px;padding:12px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;border-bottom-left-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
     .typing span{width:7px;height:7px;background:#94a3b8;border-radius:50%;animation:bounce 1.3s infinite}
     .typing span:nth-child(2){animation-delay:.2s}
     .typing span:nth-child(3){animation-delay:.4s}
     @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
-
-    /* Streaming cursor */
     .cursor::after{content:"▌";color:#1d4ed8;animation:blink .6s infinite}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-
-    /* ── Input ── */
     #input-wrap{border-top:1px solid #e2e8f0;background:#fff;padding:14px 18px;display:flex;gap:10px;align-items:flex-end;flex-shrink:0}
     #msg{flex:1;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;outline:none;resize:none;font-family:inherit;max-height:130px;overflow-y:auto;transition:border .15s;line-height:1.5}
     #msg:focus{border-color:#1d4ed8}
     #send{padding:11px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;white-space:nowrap;font-weight:500;transition:background .15s}
     #send:hover{background:#1e40af}
     #send:disabled{background:#93c5fd;cursor:not-allowed}
-
-    /* ── Empty state ── */
     #empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:30px;color:#94a3b8}
     #empty .ei{font-size:54px}
     #empty h2{font-size:21px;color:#475569;font-weight:700}
@@ -104,28 +81,48 @@
     .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
     .chip{background:#fff;border:1.5px solid #e2e8f0;border-radius:22px;padding:8px 16px;font-size:13px;color:#374151;cursor:pointer;transition:all .15s;font-weight:500}
     .chip:hover{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    #map-panel{width:380px;flex-shrink:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column}
+    #map-panel-header{padding:12px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .mp-title{font-size:13px;font-weight:600;color:#1e40af;flex:1}
+    #mp-count{font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:10px}
+    #map-status{font-size:11px;padding:4px 14px 6px;flex-shrink:0;min-height:20px;display:flex;align-items:center;gap:5px}
+    #map-status.loading{color:#1d4ed8}
+    #map-status.done{color:#059669}
+    #map-status.warn{color:#d97706}
+    #map-status .spin{display:inline-block;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #map{flex:1;width:100%;min-height:0}
+    #map-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;text-align:center;padding:24px}
+    #map-empty .me-icon{font-size:38px}
+    #map-empty p{font-size:13px;max-width:240px;line-height:1.5}
+    #place-list{max-height:160px;overflow-y:auto;border-top:1px solid #e2e8f0;flex-shrink:0}
+    .place-row{padding:7px 14px;font-size:12.5px;color:#374151;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;align-items:center;gap:7px}
+    .place-row:hover{background:#f8fafc}
+    .place-row.pending{opacity:.5}
+    .place-row.missing{color:#cbd5e1}
+    .place-row .pname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .place-row .ptype{font-size:10px;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;white-space:nowrap}
+    #map.leaflet-container{font-family:inherit}
+    .leaflet-popup-content{font-size:12.5px;line-height:1.5;min-width:150px}
+    .leaflet-popup-content .pop-type{font-size:10px;color:#1d4ed8;font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px}
+    .leaflet-popup-content strong{color:#1e293b;display:block}
+    .leaflet-popup-content .pop-addr{color:#64748b;font-size:11px;margin-top:2px}
+    @media(max-width:980px){#map-panel{display:none}}
   </style>
 </head>
 <body>
-
 <header>
   <span class="logo">✈️</span>
   <h1>AI Travel Agent</h1>
+  <span class="badge">🦙 Ollama</span>
 </header>
-
 <div class="layout">
-
-  <!-- Sidebar -->
   <aside>
     <h2>Trips</h2>
     <button id="new-btn">＋ New Trip</button>
     <div class="chat-list" id="chat-list"></div>
   </aside>
-
-  <!-- Main -->
   <div class="main">
-
-    <!-- Auth -->
     <div id="auth-bar">
       <input id="u" type="text" placeholder="Username"/>
       <input id="p" type="password" placeholder="Password"/>
@@ -134,8 +131,6 @@
       <span id="auth-status"></span>
       <button id="logout-btn">Logout</button>
     </div>
-
-    <!-- Messages -->
     <div id="messages">
       <div id="empty">
         <div class="ei">🌍</div>
@@ -148,125 +143,391 @@
         </div>
       </div>
     </div>
-
-    <!-- Input -->
     <div id="input-wrap">
       <textarea id="msg" rows="1" placeholder="e.g. Plan a trip from Delhi to Goa on 15 Jun returning 22 Jun..."></textarea>
       <button id="send">Send ➤</button>
     </div>
   </div>
+  <div id="map-panel">
+    <div id="map-panel-header">
+      <span class="mp-title">📍 Trip Map</span>
+      <span id="mp-count" style="display:none"></span>
+    </div>
+    <div id="map-status"></div>
+    <div id="map-empty">
+      <div class="me-icon">🗺️</div>
+      <p>Hotels and places from your itinerary will appear here automatically.</p>
+    </div>
+    <div id="map" style="display:none"></div>
+    <div id="place-list"></div>
+  </div>
 </div>
-
 <script>
+/* =========================================================
+   CONFIG
+   ========================================================= */
 const BASE = "http://localhost:8000";
-marked.setOptions({ breaks: true, gfm: true });
 
-let userId = null, chatId = null;
+marked.setOptions({ breaks:true, gfm:true });
 
-/* ── Utils ── */
-function fill(t){ document.getElementById("msg").value=t; document.getElementById("msg").focus() }
-function status(t){ document.getElementById("auth-status").textContent=t }
-function qs(id){ return document.getElementById(id) }
+let userId=null, chatId=null;
+let map, markers=[], placeListData=[];
 
-function hideEmpty(){ const e=qs("empty"); if(e) e.remove() }
+/* =========================================================
+   MAP INIT (Leaflet + free OpenStreetMap)
+   ========================================================= */
+function initMap(){
+  map = L.map("map",{zoomControl:true,attributionControl:true})
+          .setView([20.5937,78.9629],5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  setTimeout(()=>map.invalidateSize(),150);
+}
 
-function addRow(role, content){
+function showMapView(){
+  qs("map-empty").style.display="none";
+  qs("map").style.display="block";
+  if(map) setTimeout(()=>map.invalidateSize(),60);
+}
+
+function clearMap(){
+  markers.forEach(m=>map&&map.removeLayer(m));
+  markers=[];
+  placeListData=[];
+  renderPlaceList();
+  qs("mp-count").style.display="none";
+}
+
+/* ── Coloured SVG pin icons ── */
+const EMOJI={hotel:"🏨",attraction:"🏛️",restaurant:"🍽️",transport:"✈️",other:"📍"};
+const COLOR={hotel:"#1d4ed8",attraction:"#059669",restaurant:"#d97706",transport:"#7c3aed",other:"#64748b"};
+
+function makeIcon(type){
+  const c=COLOR[type]||COLOR.other, e=EMOJI[type]||"📍";
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+    <path d="M16 0C7.2 0 0 7.2 0 16c0 11.2 16 26 16 26S32 27.2 32 16C32 7.2 24.8 0 16 0z"
+      fill="${c}" stroke="#fff" stroke-width="2"/>
+    <circle cx="16" cy="16" r="9" fill="rgba(255,255,255,0.25)"/>
+    <text x="16" y="21" text-anchor="middle" font-size="13">${e}</text>
+  </svg>`;
+  return L.divIcon({html:svg,className:"",iconSize:[32,42],iconAnchor:[16,42],popupAnchor:[0,-44]});
+}
+
+function addMarker(p){
+  if(!map||p.lat==null||p.lng==null) return null;
+  const mk=L.marker([p.lat,p.lng],{icon:makeIcon(p.type||"other")}).addTo(map);
+  const tl=(p.type||"other");
+  mk.bindPopup(`
+    <span class="pop-type">${EMOJI[tl]||"📍"} ${tl}</span>
+    <strong>${p.name}</strong>
+    ${p.address?`<div class="pop-addr">${p.address}</div>`:""}
+  `);
+  markers.push(mk);
+  return mk;
+}
+
+function fitMarkers(){
+  if(!markers.length) return;
+  const b=L.latLngBounds(markers.map(m=>m.getLatLng()));
+  map.fitBounds(b,{padding:[30,30]});
+  if(markers.length===1) map.setZoom(13);
+}
+
+/* ── Place list sidebar ── */
+function renderPlaceList(){
+  const list=qs("place-list"); list.innerHTML="";
+  placeListData.forEach(p=>{
+    const row=document.createElement("div");
+    row.className="place-row"+(p.status==="pending"?" pending":p.status==="missing"?" missing":"");
+    const e=EMOJI[p.type]||"📍";
+    const statusIcon=p.status==="pending"?"⏳":p.status==="missing"?"❓":e;
+    row.innerHTML=`<span>${statusIcon}</span><span class="pname">${p.name}</span><span class="ptype">${p.type||"place"}</span>`;
+    if(p.status==="found"&&p.marker){
+      row.onclick=()=>{map.setView(p.marker.getLatLng(),14,{animate:true});p.marker.openPopup();};
+    }
+    list.appendChild(row);
+  });
+  const found=placeListData.filter(p=>p.status==="found").length;
+  const total=placeListData.length;
+  if(total){
+    qs("mp-count").style.display="";
+    qs("mp-count").textContent=`${found}/${total}`;
+  }
+}
+
+function setStatus(msg,cls=""){
+  const el=qs("map-status");
+  el.className="";
+  if(cls) el.classList.add(cls);
+  el.innerHTML=msg;
+}
+
+/* =========================================================
+   STEP 1 — Try to parse hidden JSON from Ollama response
+   (works if you add the system prompt to your backend)
+   ========================================================= */
+function tryExtractJSON(raw){
+  const m=raw.match(/<!--LOCATIONS_JSON:(\[[\s\S]*?\])-->/);
+  if(!m) return null;
+  try{ return JSON.parse(m[1]); }catch(e){ return null; }
+}
+
+/* =========================================================
+   STEP 2 — Extract place names from markdown text
+   Handles the hotel-listing format your Ollama produces:
+   "OYO 10259 Goa Guest House", "Hotel Fidalgo", etc.
+   ========================================================= */
+function extractPlaceNames(md, destHint){
+  const names=new Set();
+
+  // Bold hotel names: **Name** pattern (most common in your output)
+  const boldRe=/\*\*([A-Z][A-Za-z0-9&'.,\- ]{2,60}?)\*\*/g;
+  let m;
+  while((m=boldRe.exec(md))!==null){
+    const t=m[1].trim();
+    if(looksLikePlace(t)) names.add(t);
+  }
+
+  // Lines that start with hotel emoji 🏨 or 🏩
+  const emojiRe=/[🏨🏩🏪🏫]\s*([A-Z][A-Za-z0-9&'.,\- ]{3,60}?)(?:\s*[⭐★\|]|\s*\d|\n|$)/g;
+  while((m=emojiRe.exec(md))!==null){
+    const t=m[1].trim();
+    if(looksLikePlace(t)) names.add(t);
+  }
+
+  // "Hotel XYZ", "Resort XYZ", "OYO XYZ", "Taj XYZ", "Radisson XYZ" etc
+  const hotelPrefixRe=/\b(Hotel|Resort|Hyatt|Marriott|Hilton|Taj|Leela|Radisson|Novotel|OYO|Lemon Tree|ITC|Oberoi|Park|The\s+\w+\s+(?:Hotel|Resort|Inn|Spa))\s+([A-Z][A-Za-z0-9&'\-., ]{1,50})/g;
+  while((m=hotelPrefixRe.exec(md))!==null){
+    const full=(m[1]+" "+m[2]).trim().replace(/[.,]+$/,"");
+    if(looksLikePlace(full)) names.add(full);
+  }
+
+  // Beaches, airports, forts, markets (attractions)
+  const attractionRe=/\b([A-Z][A-Za-z ]{2,40}(?:Beach|Fort|Temple|Market|Palace|Museum|Park|Lake|Falls|Airport|Station|Mall))\b/g;
+  while((m=attractionRe.exec(md))!==null){
+    const t=m[1].trim();
+    if(looksLikePlace(t)) names.add(t);
+  }
+
+  const SKIP=new Set(["Budget","Mid-Range","Luxury","Deluxe","Standard","Premium",
+    "Morning","Afternoon","Evening","Night","Total","Price","Note","Day","Date",
+    "Here","Check","Stay","Book","Enjoy","Experience","Treat","Indulge","Pamper"]);
+
+  const result=Array.from(names)
+    .map(n=>n.replace(/[.,]+$/,"").trim())
+    .filter(n=>n.length>3&&!SKIP.has(n.split(" ")[0]))
+    .slice(0,12);
+
+  // Append destination to improve geocoding accuracy
+  if(destHint){
+    return result.map(n=>n.toLowerCase().includes(destHint.toLowerCase())?n:`${n}, ${destHint}`);
+  }
+  return result;
+}
+
+function looksLikePlace(t){
+  if(t.length<3||t.length>70) return false;
+  if(/^\d+$/.test(t)) return false;               // pure numbers
+  if(/[₹$€\d]/.test(t.slice(0,3))) return false;  // starts with price/number
+  if(/per night|per day|rating|stars?|\d+\s*night/i.test(t)) return false;
+  return true;
+}
+
+function guessDestination(text){
+  // Try "to Goa", "in Bangkok", "visiting Paris" etc
+  const m=text.match(/(?:to|in|at|visiting|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
+  return m?m[1]:"";
+}
+
+/* =========================================================
+   STEP 3 — Geocode names via Nominatim (free, no key)
+   Rate-limit: 1 request per second per Nominatim ToS
+   ========================================================= */
+async function geocodeOne(query){
+  try{
+    const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&addressdetails=0`;
+    const r=await fetch(url,{headers:{"Accept-Language":"en","User-Agent":"AI-Travel-Agent/1.0"}});
+    const d=await r.json();
+    if(d&&d[0]) return {lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon),address:d[0].display_name};
+  }catch(e){}
+  return null;
+}
+
+async function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+/* =========================================================
+   MAIN MAP UPDATE — called after every assistant response
+   ========================================================= */
+async function updateMapFromResponse(rawFull, userText){
+  if(!map) return;
+
+  // ── Try JSON path first (if backend has system prompt) ──
+  const jsonPlaces=tryExtractJSON(rawFull);
+  if(jsonPlaces&&jsonPlaces.length){
+    showMapView(); clearMap();
+    jsonPlaces.forEach(p=>{
+      const mk=addMarker(p);
+      placeListData.push({...p,status:"found",marker:mk});
+    });
+    renderPlaceList();
+    fitMarkers();
+    setStatus(`✅ ${markers.length} location${markers.length>1?"s":""} mapped.`,"done");
+    return;
+  }
+
+  // ── Fallback: extract names + geocode via Nominatim ──
+  const destHint=guessDestination(userText||rawFull);
+  const names=extractPlaceNames(rawFull, destHint);
+
+  if(!names.length){
+    setStatus("ℹ️ No specific places detected yet.","warn");
+    return;
+  }
+
+  showMapView(); clearMap();
+  placeListData=names.map(n=>({name:n.split(",")[0].trim(),type:guessType(n),status:"pending",marker:null}));
+  renderPlaceList();
+  setStatus(`<span class="spin">⟳</span> Locating ${names.length} place${names.length>1?"s":""}…`,"loading");
+
+  let found=0;
+  for(let i=0;i<names.length;i++){
+    const rawName=names[i];
+    const shortName=rawName.split(",")[0].trim();
+    const geo=await geocodeOne(rawName);
+    if(geo){
+      const p={name:shortName,type:guessType(rawName),lat:geo.lat,lng:geo.lng,address:geo.address};
+      const mk=addMarker(p);
+      placeListData[i]={...p,status:"found",marker:mk};
+      found++;
+      renderPlaceList();
+      setStatus(`<span class="spin">⟳</span> Found ${found}/${names.length}…`,"loading");
+    } else {
+      placeListData[i].status="missing";
+      renderPlaceList();
+    }
+    if(i<names.length-1) await sleep(1100); // Nominatim: 1 req/sec
+  }
+
+  fitMarkers();
+  if(found>0){
+    setStatus(`✅ ${found} of ${names.length} places mapped.`,"done");
+  } else {
+    setStatus("⚠️ Could not locate places — try a more detailed query.","warn");
+  }
+}
+
+function guessType(name){
+  const n=name.toLowerCase();
+  if(/hotel|resort|inn|villa|guest house|lodge|oyo|hyatt|marriott|hilton|taj|leela|radisson|novotel|oberoi|lemon tree/.test(n)) return "hotel";
+  if(/airport|station|terminal|port/.test(n)) return "transport";
+  if(/restaurant|cafe|diner|bistro|bar|pub/.test(n)) return "restaurant";
+  if(/beach|fort|temple|museum|palace|market|falls|lake|park/.test(n)) return "attraction";
+  return "other";
+}
+
+/* =========================================================
+   UI HELPERS
+   ========================================================= */
+function fill(t){ qs("msg").value=t; qs("msg").focus(); }
+function status(t){ qs("auth-status").textContent=t; }
+function qs(id){ return document.getElementById(id); }
+function hideEmpty(){ const e=qs("empty"); if(e) e.remove(); }
+
+function cleanForDisplay(raw){
+  return raw
+    .replace(/\n*<!--LOCATIONS_JSON:[\s\S]*?-->/g,"")
+    .replace(/\n*<!--CHAT_ID:[^>]+-->/g,"")
+    .trimEnd();
+}
+
+function addRow(role,content){
   hideEmpty();
-  const box = qs("messages");
-  const row = document.createElement("div");
-  row.className = `row ${role}`;
-
-  if(role !== "system"){
-    const av = document.createElement("div");
-    av.className = "avatar";
-    av.textContent = role === "user" ? "👤" : "🤖";
+  const box=qs("messages");
+  const row=document.createElement("div"); row.className=`row ${role}`;
+  if(role!=="system"){
+    const av=document.createElement("div"); av.className="avatar";
+    av.textContent=role==="user"?"👤":"🤖";
     row.appendChild(av);
   }
-
-  const bub = document.createElement("div");
-  bub.className = `bubble ${role}`;
-  if(role === "assistant"){
-    bub.innerHTML = marked.parse(content || "");
-  } else {
-    bub.textContent = content;
-  }
-  row.appendChild(bub);
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
+  const bub=document.createElement("div"); bub.className=`bubble ${role}`;
+  bub.innerHTML=role==="assistant"?marked.parse(content||""):"";
+  if(role!=="assistant") bub.textContent=content;
+  row.appendChild(bub); box.appendChild(row);
+  box.scrollTop=box.scrollHeight;
   return bub;
 }
 
 function showTyping(){
   hideEmpty();
-  const box = qs("messages");
-  const row = document.createElement("div");
-  row.className = "row assistant"; row.id = "typing-row";
-  const av = document.createElement("div"); av.className="avatar"; av.textContent="🤖";
-  const t = document.createElement("div"); t.className="typing";
+  const box=qs("messages");
+  const row=document.createElement("div"); row.className="row assistant"; row.id="typing-row";
+  const av=document.createElement("div"); av.className="avatar"; av.textContent="🤖";
+  const t=document.createElement("div"); t.className="typing";
   t.innerHTML="<span></span><span></span><span></span>";
-  row.appendChild(av); row.appendChild(t);
-  box.appendChild(row);
-  box.scrollTop = box.scrollHeight;
+  row.appendChild(av); row.appendChild(t); box.appendChild(row);
+  box.scrollTop=box.scrollHeight;
 }
-function removeTyping(){ const e=qs("typing-row"); if(e) e.remove() }
+function removeTyping(){ const e=qs("typing-row"); if(e) e.remove(); }
 
 function resetChat(){
-  qs("messages").innerHTML=`
-    <div id="empty">
-      <div class="ei">🌍</div>
-      <h2>Where to next?</h2>
-      <p>Tell me where you want to go — give me all details at once or I'll guide you step by step.</p>
-      <div class="chips">
-        <div class="chip" onclick="fill('Plan a trip from Delhi to Goa on 15 Jun returning 22 Jun')">✈️ Delhi → Goa</div>
-        <div class="chip" onclick="fill('I want to fly from Mumbai to Bangkok on 10 Jul for 7 days')">🌏 Mumbai → Bangkok</div>
-        <div class="chip" onclick="fill('Trip from Bangalore to Manali')">🏔️ Bangalore → Manali</div>
-      </div>
-    </div>`;
+  qs("messages").innerHTML=`<div id="empty">
+    <div class="ei">🌍</div><h2>Where to next?</h2>
+    <p>Tell me where you want to go — give me all details at once or I'll guide you step by step.</p>
+    <div class="chips">
+      <div class="chip" onclick="fill('Plan a trip from Delhi to Goa on 15 Jun returning 22 Jun')">✈️ Delhi → Goa</div>
+      <div class="chip" onclick="fill('I want to fly from Mumbai to Bangkok on 10 Jul for 7 days')">🌏 Mumbai → Bangkok</div>
+      <div class="chip" onclick="fill('Trip from Bangalore to Manali')">🏔️ Bangalore → Manali</div>
+    </div></div>`;
+  clearMap();
+  qs("map-empty").style.display="flex";
+  qs("map").style.display="none";
+  setStatus("");
 }
 
-/* ── Auth ── */
-async function authCall(path, u, p){
-  const r = await fetch(`${BASE}/chat/${path}?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`,{method:"POST"});
-  const d = await r.json();
+/* =========================================================
+   AUTH
+   ========================================================= */
+async function authCall(path,u,p){
+  const r=await fetch(`${BASE}/chat/${path}?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`,{method:"POST"});
+  const d=await r.json();
   if(!r.ok) throw new Error(d.detail||"Failed");
   return d;
 }
-
-qs("login-btn").onclick = async ()=>{
-  const u=qs("u").value.trim(), p=qs("p").value.trim();
+qs("login-btn").onclick=async()=>{
+  const u=qs("u").value.trim(),p=qs("p").value.trim();
   if(!u||!p) return status("Enter username and password");
   try{ const d=await authCall("login",u,p); userId=d.user_id; onLogin(u); loadChats(); }
   catch(e){ status("❌ "+e.message); }
 };
-
-qs("reg-btn").onclick = async ()=>{
-  const u=qs("u").value.trim(), p=qs("p").value.trim();
+qs("reg-btn").onclick=async()=>{
+  const u=qs("u").value.trim(),p=qs("p").value.trim();
   if(!u||!p) return status("Enter username and password");
   try{ const d=await authCall("register",u,p); userId=d.user_id; onLogin(u); }
   catch(e){ status("❌ "+e.message); }
 };
-
-qs("logout-btn").onclick = ()=>{
+qs("logout-btn").onclick=()=>{
   userId=null; chatId=null;
   ["u","p","login-btn","reg-btn"].forEach(id=>qs(id).style.display="");
   qs("logout-btn").style.display="none";
   status(""); qs("chat-list").innerHTML=""; resetChat();
 };
-
 function onLogin(name){
   status(`👤 ${name}`);
   ["u","p","login-btn","reg-btn"].forEach(id=>qs(id).style.display="none");
   qs("logout-btn").style.display="";
 }
 
-/* ── Sidebar ── */
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
 async function loadChats(){
   if(!userId) return;
   try{
-    const r = await fetch(`${BASE}/chat/users/${userId}/chats`);
-    const chats = await r.json();
-    const list = qs("chat-list");
-    list.innerHTML="";
+    const r=await fetch(`${BASE}/chat/users/${userId}/chats`);
+    const chats=await r.json();
+    const list=qs("chat-list"); list.innerHTML="";
     chats.forEach(c=>{
       const el=document.createElement("button");
       el.className="c-item"+(c.chat_id===chatId?" active":"");
@@ -277,17 +538,22 @@ async function loadChats(){
   }catch(e){}
 }
 
-async function openChat(id, el){
+async function openChat(id,el){
   chatId=id; resetChat();
   document.querySelectorAll(".c-item").forEach(i=>i.classList.remove("active"));
   if(el) el.classList.add("active");
   try{
     const r=await fetch(`${BASE}/chat/history/${id}`);
     const msgs=await r.json();
-    msgs.forEach(m=>{
-      if(m.role==="assistant") addRow("assistant", m.message);
-      else addRow("user", m.message);
-    });
+    let lastUser="";
+    for(const m of msgs){
+      if(m.role==="assistant"){
+        addRow("assistant",cleanForDisplay(m.message));
+        await updateMapFromResponse(m.message,lastUser);
+      } else {
+        addRow("user",m.message); lastUser=m.message;
+      }
+    }
   }catch(e){}
 }
 
@@ -296,86 +562,70 @@ qs("new-btn").onclick=()=>{
   document.querySelectorAll(".c-item").forEach(e=>e.classList.remove("active"));
 };
 
-/* ── Send ── */
-qs("send").onclick = send;
-qs("msg").addEventListener("keydown", e=>{
+/* =========================================================
+   SEND
+   ========================================================= */
+qs("send").onclick=send;
+qs("msg").addEventListener("keydown",e=>{
   if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); }
 });
-qs("msg").addEventListener("input", function(){
+qs("msg").addEventListener("input",function(){
   this.style.height="auto";
   this.style.height=Math.min(this.scrollHeight,130)+"px";
 });
 
 async function send(){
   if(!userId){ addRow("system","⚠️ Please login first."); return; }
-  const inp=qs("msg");
-  const text=inp.value.trim();
+  const inp=qs("msg"), text=inp.value.trim();
   if(!text) return;
-
   inp.value=""; inp.style.height="auto";
   qs("send").disabled=true;
-
-  addRow("user", text);
+  addRow("user",text);
   showTyping();
 
-  const params=new URLSearchParams({message:text, user_id:userId});
-  if(chatId) params.append("chat_id", chatId);
+  const params=new URLSearchParams({message:text,user_id:userId});
+  if(chatId) params.append("chat_id",chatId);
 
   try{
     const res=await fetch(`${BASE}/chat/?${params}`,{method:"POST"});
-    if(!res.ok){
-      removeTyping();
-      addRow("system","❌ Server error "+res.status);
-      qs("send").disabled=false;
-      return;
-    }
+    if(!res.ok){ removeTyping(); addRow("system","❌ Server error "+res.status); qs("send").disabled=false; return; }
 
-    const reader=res.body.getReader();
-    const dec=new TextDecoder();
+    const reader=res.body.getReader(), dec=new TextDecoder();
     let full="";
+    removeTyping(); hideEmpty();
 
-    removeTyping();
-    hideEmpty();
-
-    // Create streaming bubble
     const box=qs("messages");
-    const row=document.createElement("div");
-    row.className="row assistant";
+    const row=document.createElement("div"); row.className="row assistant";
     const av=document.createElement("div"); av.className="avatar"; av.textContent="🤖";
     const bub=document.createElement("div"); bub.className="bubble assistant cursor";
     row.appendChild(av); row.appendChild(bub); box.appendChild(row);
 
     while(true){
-      const {done,value}=await reader.read();
-      if(done) break;
-      const chunk=dec.decode(value,{stream:true});
-      full+=chunk;
-
-      // Capture chat_id
-      const cm=full.match(/<!--CHAT_ID:([a-f0-9-]+)-->/);
-      if(cm) chatId=cm[1];
-
-      // Clean and render
-      const display=full.replace(/\n*<!--CHAT_ID:[^>]+-->/g,"").trimEnd();
-      bub.innerHTML=marked.parse(display);
+      const {done,value}=await reader.read(); if(done) break;
+      full+=dec.decode(value,{stream:true});
+      const cm=full.match(/<!--CHAT_ID:([a-f0-9-]+)-->/); if(cm) chatId=cm[1];
+      bub.innerHTML=marked.parse(cleanForDisplay(full));
       box.scrollTop=box.scrollHeight;
     }
 
-    // Final render - remove cursor
     bub.classList.remove("cursor");
-    const final=full.replace(/\n*<!--CHAT_ID:[^>]+-->/g,"").trimEnd();
-    bub.innerHTML=marked.parse(final);
+    bub.innerHTML=marked.parse(cleanForDisplay(full));
     box.scrollTop=box.scrollHeight;
 
+    // Update map — uses JSON if available, else geocodes automatically
+    updateMapFromResponse(full, text);
     loadChats();
-
   }catch(e){
     removeTyping();
     addRow("system","❌ Cannot reach server. Is it running on port 8000?");
   }
-
   qs("send").disabled=false;
 }
+
+/* =========================================================
+   INIT
+   ========================================================= */
+initMap();
 </script>
 </body>
 </html>
