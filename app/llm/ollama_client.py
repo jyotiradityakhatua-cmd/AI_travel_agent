@@ -34,6 +34,10 @@
 import httpx
 import json
 import time
+import os
+import load_dotenv
+
+load_dotenv()
 
 host = "http://localhost"
 port = 11434
@@ -41,7 +45,7 @@ port = 11434
 client = httpx.Client(base_url=f"{host}:{port}")
 
 payload = {
-    "model": "llama3",
+    "model": "OLLAMA_MODEL",
     "messages": [
         {
             "role": "user",

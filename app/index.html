@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Travel Agent ✈️</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -39,10 +40,13 @@
     .row{display:flex;align-items:flex-end;gap:8px}
     .row.user{flex-direction:row-reverse}
     .row.assistant{flex-direction:row}
+    .msg-col{display:flex;flex-direction:column;max-width:76%;gap:6px}
+    .row.user .msg-col{align-items:flex-end}
+    .row.assistant .msg-col{align-items:flex-start}
     .avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
     .row.user .avatar{background:#1d4ed8;color:#fff}
     .row.assistant .avatar{background:#f1f5f9;border:1px solid #e2e8f0}
-    .bubble{max-width:76%;padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.7;word-break:break-word}
+    .bubble{padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.7;word-break:break-word;width:100%}
     .row.user .bubble{background:#1d4ed8;color:#fff;border-bottom-right-radius:3px}
     .row.assistant .bubble{background:#fff;color:#1e293b;border:1px solid #e2e8f0;border-bottom-left-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
     .row.system{justify-content:center}
@@ -68,6 +72,13 @@
     @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
     .cursor::after{content:"▌";color:#1d4ed8;animation:blink .6s infinite}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+    .export-bar{display:flex;gap:6px;flex-wrap:wrap;opacity:0;animation:fadeIn .35s ease forwards;animation-delay:.1s}
+    @keyframes fadeIn{to{opacity:1}}
+    .export-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;background:#fff;border:1px solid #dbe3f0;border-radius:8px;font-size:12px;color:#374151;cursor:pointer;font-weight:500;transition:all .15s}
+    .export-btn:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;transform:translateY(-1px)}
+    .export-btn:active{transform:translateY(0)}
+    .export-btn .ico{font-size:13px}
+    .export-btn.copied{background:#ecfdf5;border-color:#6ee7b7;color:#059669}
     #input-wrap{border-top:1px solid #e2e8f0;background:#fff;padding:14px 18px;display:flex;gap:10px;align-items:flex-end;flex-shrink:0}
     #msg{flex:1;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:14px;outline:none;resize:none;font-family:inherit;max-height:130px;overflow-y:auto;transition:border .15s;line-height:1.5}
     #msg:focus{border-color:#1d4ed8}
@@ -81,32 +92,44 @@
     .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
     .chip{background:#fff;border:1.5px solid #e2e8f0;border-radius:22px;padding:8px 16px;font-size:13px;color:#374151;cursor:pointer;transition:all .15s;font-weight:500}
     .chip:hover{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
-    #map-panel{width:380px;flex-shrink:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column}
+
+    /* ── MAP PANEL ── */
+    #map-panel{width:390px;flex-shrink:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden}
     #map-panel-header{padding:12px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-shrink:0}
     .mp-title{font-size:13px;font-weight:600;color:#1e40af;flex:1}
-    #mp-count{font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:10px}
-    #map-status{font-size:11px;padding:4px 14px 6px;flex-shrink:0;min-height:20px;display:flex;align-items:center;gap:5px}
+    #mp-count{font-size:11px;color:#94a3b8;background:#f1f5f9;padding:2px 8px;border-radius:10px;display:none}
+    #map-legend{display:flex;gap:10px;flex-wrap:wrap;padding:7px 14px;border-bottom:1px solid #f1f5f9;flex-shrink:0}
+    .legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:#64748b}
+    .legend-dot{width:10px;height:10px;border-radius:50%}
+    #map-status{font-size:11.5px;padding:5px 14px;flex-shrink:0;min-height:22px;display:flex;align-items:center;gap:5px;color:#64748b}
     #map-status.loading{color:#1d4ed8}
     #map-status.done{color:#059669}
     #map-status.warn{color:#d97706}
     #map-status .spin{display:inline-block;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    #map{flex:1;width:100%;min-height:0}
-    #map-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;text-align:center;padding:24px}
+    #map-wrap{flex:1;position:relative;min-height:0}
+    #map{position:absolute;inset:0;width:100%;height:100%}
+    #map-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;text-align:center;padding:24px;background:#fff;z-index:1;pointer-events:none}
     #map-empty .me-icon{font-size:38px}
-    #map-empty p{font-size:13px;max-width:240px;line-height:1.5}
-    #place-list{max-height:160px;overflow-y:auto;border-top:1px solid #e2e8f0;flex-shrink:0}
-    .place-row{padding:7px 14px;font-size:12.5px;color:#374151;border-bottom:1px solid #f1f5f9;cursor:pointer;display:flex;align-items:center;gap:7px}
+    #map-empty p{font-size:13px;max-width:220px;line-height:1.6}
+    #place-list{max-height:190px;overflow-y:auto;border-top:1px solid #e2e8f0;flex-shrink:0}
+    .place-row{padding:7px 12px;font-size:12.5px;color:#374151;border-bottom:1px solid #f8fafc;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .1s}
     .place-row:hover{background:#f8fafc}
-    .place-row.pending{opacity:.5}
-    .place-row.missing{color:#cbd5e1}
-    .place-row .pname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .place-row .ptype{font-size:10px;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:8px;white-space:nowrap}
+    .place-row.pending{opacity:.5;cursor:default}
+    .place-row.missing{opacity:.4;cursor:default}
+    .place-row .picon{font-size:13px;flex-shrink:0}
+    .place-row .pname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+    .place-row .pday{font-size:10px;color:#1d4ed8;background:#eff6ff;padding:1px 6px;border-radius:6px;white-space:nowrap;flex-shrink:0}
+    .place-row .ptype{font-size:10px;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:6px;white-space:nowrap;flex-shrink:0}
+    .place-row .pstatus{font-size:11px;flex-shrink:0}
+    #map-clear-btn{position:absolute;top:8px;right:8px;z-index:999;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:4px 9px;font-size:11px;color:#64748b;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    #map-clear-btn:hover{background:#fee2e2;color:#b91c1c;border-color:#fca5a5}
     #map.leaflet-container{font-family:inherit}
-    .leaflet-popup-content{font-size:12.5px;line-height:1.5;min-width:150px}
+    .leaflet-popup-content{font-size:12.5px;line-height:1.5;min-width:160px}
     .leaflet-popup-content .pop-type{font-size:10px;color:#1d4ed8;font-weight:700;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px}
-    .leaflet-popup-content strong{color:#1e293b;display:block}
-    .leaflet-popup-content .pop-addr{color:#64748b;font-size:11px;margin-top:2px}
+    .leaflet-popup-content strong{color:#1e293b;display:block;font-size:13px}
+    .leaflet-popup-content .pop-day{font-size:11px;color:#059669;font-weight:600;margin-top:2px}
+    .leaflet-popup-content .pop-addr{color:#64748b;font-size:11px;margin-top:3px}
     @media(max-width:980px){#map-panel{display:none}}
   </style>
 </head>
@@ -148,301 +171,532 @@
       <button id="send">Send ➤</button>
     </div>
   </div>
+
+  <!-- ══════════════ MAP PANEL ══════════════ -->
   <div id="map-panel">
     <div id="map-panel-header">
       <span class="mp-title">📍 Trip Map</span>
-      <span id="mp-count" style="display:none"></span>
+      <span id="mp-count"></span>
+    </div>
+    <div id="map-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#1d4ed8"></span>Hotel</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#059669"></span>Attraction</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#d97706"></span>Restaurant</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span>Transport</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#64748b"></span>Other</span>
     </div>
     <div id="map-status"></div>
-    <div id="map-empty">
-      <div class="me-icon">🗺️</div>
-      <p>Hotels and places from your itinerary will appear here automatically.</p>
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="map-empty">
+        <div class="me-icon">🗺️</div>
+        <p>Hotels and itinerary places will be pinned here automatically after the AI responds.</p>
+      </div>
+      <button id="map-clear-btn" onclick="clearMap()" title="Clear all pins">✕ Clear</button>
     </div>
-    <div id="map" style="display:none"></div>
     <div id="place-list"></div>
   </div>
 </div>
-<script>
-/* =========================================================
-   CONFIG
-   ========================================================= */
-const BASE = "http://localhost:8000";
 
+<script>
+/* ═══════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════ */
+const BASE = "http://localhost:8000";
 marked.setOptions({ breaks:true, gfm:true });
 
 let userId=null, chatId=null;
-let map, markers=[], placeListData=[];
+let map=null, mapReady=false;
+let markerMap={};   // id -> L.Marker
+let placeListData=[];
+let pinIdCounter=0;
 
-/* =========================================================
-   MAP INIT (Leaflet + free OpenStreetMap)
-   ========================================================= */
+/* ═══════════════════════════════════════════════
+   PLACE TYPE CONFIG
+═══════════════════════════════════════════════ */
+const TYPE_EMOJI = { hotel:"🏨", attraction:"🏛️", restaurant:"🍽️", transport:"✈️", airport:"✈️", other:"📍" };
+const TYPE_COLOR = { hotel:"#1d4ed8", attraction:"#059669", restaurant:"#d97706", transport:"#7c3aed", airport:"#7c3aed", other:"#64748b" };
+
+/* ═══════════════════════════════════════════════
+   MAP INIT — always initialise into the visible div
+═══════════════════════════════════════════════ */
 function initMap(){
-  map = L.map("map",{zoomControl:true,attributionControl:true})
-          .setView([20.5937,78.9629],5);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  if(map) return;
+  map = L.map("map", { zoomControl:true, attributionControl:true }).setView([20.5937,78.9629], 4);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom:19,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
-  setTimeout(()=>map.invalidateSize(),150);
+  mapReady = true;
+  // Force Leaflet to recalculate size after DOM is fully painted
+  requestAnimationFrame(()=>{ map.invalidateSize(); });
 }
 
-function showMapView(){
-  qs("map-empty").style.display="none";
-  qs("map").style.display="block";
-  if(map) setTimeout(()=>map.invalidateSize(),60);
+function showMap(){
+  const empty = qs("map-empty");
+  if(empty) empty.style.display="none";
+  if(map) setTimeout(()=>map.invalidateSize(), 80);
 }
 
-function clearMap(){
-  markers.forEach(m=>map&&map.removeLayer(m));
-  markers=[];
-  placeListData=[];
-  renderPlaceList();
-  qs("mp-count").style.display="none";
+function hideMap(){
+  const empty = qs("map-empty");
+  if(empty) empty.style.display="flex";
 }
 
-/* ── Coloured SVG pin icons ── */
-const EMOJI={hotel:"🏨",attraction:"🏛️",restaurant:"🍽️",transport:"✈️",other:"📍"};
-const COLOR={hotel:"#1d4ed8",attraction:"#059669",restaurant:"#d97706",transport:"#7c3aed",other:"#64748b"};
-
-function makeIcon(type){
-  const c=COLOR[type]||COLOR.other, e=EMOJI[type]||"📍";
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
-    <path d="M16 0C7.2 0 0 7.2 0 16c0 11.2 16 26 16 26S32 27.2 32 16C32 7.2 24.8 0 16 0z"
-      fill="${c}" stroke="#fff" stroke-width="2"/>
-    <circle cx="16" cy="16" r="9" fill="rgba(255,255,255,0.25)"/>
-    <text x="16" y="21" text-anchor="middle" font-size="13">${e}</text>
+/* ═══════════════════════════════════════════════
+   SVG PIN ICONS
+═══════════════════════════════════════════════ */
+function makeIcon(type, dayNum){
+  const c = TYPE_COLOR[type] || TYPE_COLOR.other;
+  const e = TYPE_EMOJI[type] || "📍";
+  const label = dayNum ? `<text x="16" y="38" text-anchor="middle" font-size="8" font-family="sans-serif" fill="${c}" font-weight="700">D${dayNum}</text>` : "";
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="46" viewBox="0 0 34 46">
+    <filter id="sh"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-opacity="0.25"/></filter>
+    <path d="M17 1C8.7 1 2 7.7 2 16c0 11.8 15 28 15 28S32 27.8 32 16C32 7.7 25.3 1 17 1z"
+      fill="${c}" stroke="#fff" stroke-width="2" filter="url(#sh)"/>
+    <circle cx="17" cy="16" r="8" fill="rgba(255,255,255,0.22)"/>
+    <text x="17" y="21" text-anchor="middle" font-size="11">${e}</text>
+    ${label}
   </svg>`;
-  return L.divIcon({html:svg,className:"",iconSize:[32,42],iconAnchor:[16,42],popupAnchor:[0,-44]});
+  return L.divIcon({ html:svg, className:"", iconSize:[34,46], iconAnchor:[17,46], popupAnchor:[0,-48] });
 }
 
-function addMarker(p){
-  if(!map||p.lat==null||p.lng==null) return null;
-  const mk=L.marker([p.lat,p.lng],{icon:makeIcon(p.type||"other")}).addTo(map);
-  const tl=(p.type||"other");
+/* ═══════════════════════════════════════════════
+   ADD A SINGLE MARKER
+═══════════════════════════════════════════════ */
+function addMarker(place){
+  if(!mapReady || place.lat==null || place.lng==null) return null;
+  const mk = L.marker([place.lat, place.lng], { icon: makeIcon(place.type||"other", place.day) }).addTo(map);
+  const dayStr = place.day ? `<div class="pop-day">Day ${place.day}</div>` : "";
+  const addrStr = place.address ? `<div class="pop-addr">${place.address.split(",").slice(0,3).join(", ")}</div>` : "";
   mk.bindPopup(`
-    <span class="pop-type">${EMOJI[tl]||"📍"} ${tl}</span>
-    <strong>${p.name}</strong>
-    ${p.address?`<div class="pop-addr">${p.address}</div>`:""}
+    <span class="pop-type">${TYPE_EMOJI[place.type]||"📍"} ${place.type||"place"}</span>
+    <strong>${place.name}</strong>
+    ${dayStr}${addrStr}
   `);
-  markers.push(mk);
+  markerMap[place._id] = mk;
   return mk;
 }
 
+/* ═══════════════════════════════════════════════
+   FIT MAP TO ALL MARKERS
+═══════════════════════════════════════════════ */
 function fitMarkers(){
-  if(!markers.length) return;
-  const b=L.latLngBounds(markers.map(m=>m.getLatLng()));
-  map.fitBounds(b,{padding:[30,30]});
-  if(markers.length===1) map.setZoom(13);
+  const mks = Object.values(markerMap);
+  if(!mks.length) return;
+  const b = L.latLngBounds(mks.map(m=>m.getLatLng()));
+  map.fitBounds(b, { padding:[36,36], maxZoom:14 });
 }
 
-/* ── Place list sidebar ── */
+/* ═══════════════════════════════════════════════
+   CLEAR ALL PINS
+═══════════════════════════════════════════════ */
+function clearMap(){
+  Object.values(markerMap).forEach(m => map && map.removeLayer(m));
+  markerMap = {};
+  placeListData = [];
+  renderPlaceList();
+  qs("mp-count").style.display="none";
+  hideMap();
+  setMapStatus("","");
+}
+
+/* ═══════════════════════════════════════════════
+   PLACE LIST SIDEBAR
+═══════════════════════════════════════════════ */
 function renderPlaceList(){
-  const list=qs("place-list"); list.innerHTML="";
-  placeListData.forEach(p=>{
-    const row=document.createElement("div");
-    row.className="place-row"+(p.status==="pending"?" pending":p.status==="missing"?" missing":"");
-    const e=EMOJI[p.type]||"📍";
-    const statusIcon=p.status==="pending"?"⏳":p.status==="missing"?"❓":e;
-    row.innerHTML=`<span>${statusIcon}</span><span class="pname">${p.name}</span><span class="ptype">${p.type||"place"}</span>`;
-    if(p.status==="found"&&p.marker){
-      row.onclick=()=>{map.setView(p.marker.getLatLng(),14,{animate:true});p.marker.openPopup();};
+  const list = qs("place-list");
+  list.innerHTML = "";
+  if(!placeListData.length){
+    qs("mp-count").style.display="none";
+    return;
+  }
+  // Sort by day first, then by insertion order
+  const sorted = [...placeListData].sort((a,b)=>{
+    if(a.day && b.day) return a.day - b.day;
+    if(a.day) return -1;
+    if(b.day) return 1;
+    return 0;
+  });
+  sorted.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "place-row" + (p.status==="pending"?" pending":p.status==="missing"?" missing":"");
+    const icon = p.status==="pending" ? "⏳" : p.status==="missing" ? "❓" : (TYPE_EMOJI[p.type]||"📍");
+    const dayBadge = p.day ? `<span class="pday">Day ${p.day}</span>` : "";
+    const statusDot = p.status==="found" ? "" : `<span class="pstatus">${icon}</span>`;
+    row.innerHTML = `
+      <span class="picon">${p.status==="found"?(TYPE_EMOJI[p.type]||"📍"):icon}</span>
+      <span class="pname">${p.name}</span>
+      ${dayBadge}
+      <span class="ptype">${p.type||"place"}</span>
+      ${statusDot}
+    `;
+    if(p.status==="found" && markerMap[p._id]){
+      row.onclick=()=>{
+        map.setView(markerMap[p._id].getLatLng(), 14, {animate:true});
+        markerMap[p._id].openPopup();
+      };
     }
     list.appendChild(row);
   });
-  const found=placeListData.filter(p=>p.status==="found").length;
-  const total=placeListData.length;
-  if(total){
-    qs("mp-count").style.display="";
-    qs("mp-count").textContent=`${found}/${total}`;
-  }
+  const found = placeListData.filter(p=>p.status==="found").length;
+  const total = placeListData.length;
+  const cnt = qs("mp-count");
+  cnt.style.display="";
+  cnt.textContent = `${found}/${total} pinned`;
 }
 
-function setStatus(msg,cls=""){
-  const el=qs("map-status");
-  el.className="";
+function setMapStatus(msg, cls){
+  const el = qs("map-status");
+  el.className = cls ? "loading done warn".split(" ").filter(c=>c===cls).length ? cls : "" : "";
   if(cls) el.classList.add(cls);
-  el.innerHTML=msg;
+  el.innerHTML = msg;
 }
 
-/* =========================================================
-   STEP 1 — Try to parse hidden JSON from Ollama response
-   (works if you add the system prompt to your backend)
-   ========================================================= */
-function tryExtractJSON(raw){
-  const m=raw.match(/<!--LOCATIONS_JSON:(\[[\s\S]*?\])-->/);
-  if(!m) return null;
-  try{ return JSON.parse(m[1]); }catch(e){ return null; }
-}
-
-/* =========================================================
-   STEP 2 — Extract place names from markdown text
-   Handles the hotel-listing format your Ollama produces:
-   "OYO 10259 Goa Guest House", "Hotel Fidalgo", etc.
-   ========================================================= */
-function extractPlaceNames(md, destHint){
-  const names=new Set();
-
-  // Bold hotel names: **Name** pattern (most common in your output)
-  const boldRe=/\*\*([A-Z][A-Za-z0-9&'.,\- ]{2,60}?)\*\*/g;
-  let m;
-  while((m=boldRe.exec(md))!==null){
-    const t=m[1].trim();
-    if(looksLikePlace(t)) names.add(t);
-  }
-
-  // Lines that start with hotel emoji 🏨 or 🏩
-  const emojiRe=/[🏨🏩🏪🏫]\s*([A-Z][A-Za-z0-9&'.,\- ]{3,60}?)(?:\s*[⭐★\|]|\s*\d|\n|$)/g;
-  while((m=emojiRe.exec(md))!==null){
-    const t=m[1].trim();
-    if(looksLikePlace(t)) names.add(t);
-  }
-
-  // "Hotel XYZ", "Resort XYZ", "OYO XYZ", "Taj XYZ", "Radisson XYZ" etc
-  const hotelPrefixRe=/\b(Hotel|Resort|Hyatt|Marriott|Hilton|Taj|Leela|Radisson|Novotel|OYO|Lemon Tree|ITC|Oberoi|Park|The\s+\w+\s+(?:Hotel|Resort|Inn|Spa))\s+([A-Z][A-Za-z0-9&'\-., ]{1,50})/g;
-  while((m=hotelPrefixRe.exec(md))!==null){
-    const full=(m[1]+" "+m[2]).trim().replace(/[.,]+$/,"");
-    if(looksLikePlace(full)) names.add(full);
-  }
-
-  // Beaches, airports, forts, markets (attractions)
-  const attractionRe=/\b([A-Z][A-Za-z ]{2,40}(?:Beach|Fort|Temple|Market|Palace|Museum|Park|Lake|Falls|Airport|Station|Mall))\b/g;
-  while((m=attractionRe.exec(md))!==null){
-    const t=m[1].trim();
-    if(looksLikePlace(t)) names.add(t);
-  }
-
-  const SKIP=new Set(["Budget","Mid-Range","Luxury","Deluxe","Standard","Premium",
-    "Morning","Afternoon","Evening","Night","Total","Price","Note","Day","Date",
-    "Here","Check","Stay","Book","Enjoy","Experience","Treat","Indulge","Pamper"]);
-
-  const result=Array.from(names)
-    .map(n=>n.replace(/[.,]+$/,"").trim())
-    .filter(n=>n.length>3&&!SKIP.has(n.split(" ")[0]))
-    .slice(0,12);
-
-  // Append destination to improve geocoding accuracy
-  if(destHint){
-    return result.map(n=>n.toLowerCase().includes(destHint.toLowerCase())?n:`${n}, ${destHint}`);
-  }
-  return result;
-}
-
-function looksLikePlace(t){
-  if(t.length<3||t.length>70) return false;
-  if(/^\d+$/.test(t)) return false;               // pure numbers
-  if(/[₹$€\d]/.test(t.slice(0,3))) return false;  // starts with price/number
-  if(/per night|per day|rating|stars?|\d+\s*night/i.test(t)) return false;
-  return true;
-}
-
-function guessDestination(text){
-  // Try "to Goa", "in Bangkok", "visiting Paris" etc
-  const m=text.match(/(?:to|in|at|visiting|for)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
-  return m?m[1]:"";
-}
-
-/* =========================================================
-   STEP 3 — Geocode names via Nominatim (free, no key)
-   Rate-limit: 1 request per second per Nominatim ToS
-   ========================================================= */
+/* ═══════════════════════════════════════════════
+   GEOCODE via Nominatim (free, no API key)
+═══════════════════════════════════════════════ */
 async function geocodeOne(query){
   try{
     const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&addressdetails=0`;
-    const r=await fetch(url,{headers:{"Accept-Language":"en","User-Agent":"AI-Travel-Agent/1.0"}});
+    const r=await fetch(url,{headers:{"Accept-Language":"en","User-Agent":"AI-Travel-Agent/1.0 (travel planner)"}});
     const d=await r.json();
-    if(d&&d[0]) return {lat:parseFloat(d[0].lat),lng:parseFloat(d[0].lon),address:d[0].display_name};
+    if(d && d[0]) return { lat:parseFloat(d[0].lat), lng:parseFloat(d[0].lon), address:d[0].display_name };
   }catch(e){}
   return null;
 }
 
-async function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-/* =========================================================
-   MAIN MAP UPDATE — called after every assistant response
-   ========================================================= */
-async function updateMapFromResponse(rawFull, userText){
-  if(!map) return;
-
-  // ── Try JSON path first (if backend has system prompt) ──
-  const jsonPlaces=tryExtractJSON(rawFull);
-  if(jsonPlaces&&jsonPlaces.length){
-    showMapView(); clearMap();
-    jsonPlaces.forEach(p=>{
-      const mk=addMarker(p);
-      placeListData.push({...p,status:"found",marker:mk});
-    });
-    renderPlaceList();
-    fitMarkers();
-    setStatus(`✅ ${markers.length} location${markers.length>1?"s":""} mapped.`,"done");
-    return;
-  }
-
-  // ── Fallback: extract names + geocode via Nominatim ──
-  const destHint=guessDestination(userText||rawFull);
-  const names=extractPlaceNames(rawFull, destHint);
-
-  if(!names.length){
-    setStatus("ℹ️ No specific places detected yet.","warn");
-    return;
-  }
-
-  showMapView(); clearMap();
-  placeListData=names.map(n=>({name:n.split(",")[0].trim(),type:guessType(n),status:"pending",marker:null}));
-  renderPlaceList();
-  setStatus(`<span class="spin">⟳</span> Locating ${names.length} place${names.length>1?"s":""}…`,"loading");
-
-  let found=0;
-  for(let i=0;i<names.length;i++){
-    const rawName=names[i];
-    const shortName=rawName.split(",")[0].trim();
-    const geo=await geocodeOne(rawName);
-    if(geo){
-      const p={name:shortName,type:guessType(rawName),lat:geo.lat,lng:geo.lng,address:geo.address};
-      const mk=addMarker(p);
-      placeListData[i]={...p,status:"found",marker:mk};
-      found++;
-      renderPlaceList();
-      setStatus(`<span class="spin">⟳</span> Found ${found}/${names.length}…`,"loading");
-    } else {
-      placeListData[i].status="missing";
-      renderPlaceList();
-    }
-    if(i<names.length-1) await sleep(1100); // Nominatim: 1 req/sec
-  }
-
-  fitMarkers();
-  if(found>0){
-    setStatus(`✅ ${found} of ${names.length} places mapped.`,"done");
-  } else {
-    setStatus("⚠️ Could not locate places — try a more detailed query.","warn");
-  }
-}
-
+/* ═══════════════════════════════════════════════
+   PLACE TYPE GUESSER
+═══════════════════════════════════════════════ */
 function guessType(name){
-  const n=name.toLowerCase();
-  if(/hotel|resort|inn|villa|guest house|lodge|oyo|hyatt|marriott|hilton|taj|leela|radisson|novotel|oberoi|lemon tree/.test(n)) return "hotel";
-  if(/airport|station|terminal|port/.test(n)) return "transport";
-  if(/restaurant|cafe|diner|bistro|bar|pub/.test(n)) return "restaurant";
-  if(/beach|fort|temple|museum|palace|market|falls|lake|park/.test(n)) return "attraction";
+  const n = name.toLowerCase();
+  if(/hotel|resort|inn|villa|lodge|suites|oyo|hyatt|marriott|hilton|taj|leela|radisson|novotel|oberoi|lemon tree|itc |sheraton|westin|four seasons|ritz|intercontinental/.test(n)) return "hotel";
+  if(/airport|airbase|aerodrome/.test(n)) return "airport";
+  if(/station|terminal|port|bus stand/.test(n)) return "transport";
+  if(/restaurant|cafe|café|diner|bistro|bar |pub |eatery|dhaba|food/.test(n)) return "restaurant";
+  if(/beach|fort|temple|museum|palace|market|falls|lake|park|garden|monument|gate|cave|ruins|viewpoint|mahal|gurdwara|church|mosque/.test(n)) return "attraction";
   return "other";
 }
 
-/* =========================================================
+/* ═══════════════════════════════════════════════
+   EXTRACT PLACES FROM MARKDOWN RESPONSE
+   Enhanced to capture Day numbers, hotel names,
+   itinerary attractions, airports, etc.
+═══════════════════════════════════════════════ */
+function extractPlacesFromMarkdown(md, destHint){
+  const results = []; // { name, type, day, geocodeQuery }
+  const seen = new Set();
+
+  function add(name, type, day){
+    name = name.trim().replace(/[.,;:]+$/, "").trim();
+    if(name.length < 3 || name.length > 80) return;
+    const key = name.toLowerCase();
+    if(seen.has(key)) return;
+    const SKIP = /^(morning|afternoon|evening|night|total|note|day|here|check|stay|book|enjoy|experience|budget|luxury|premium|standard|mid-range|deluxe|return|depart|price|cost|rate|the|and|or|for|with|from|to|via)/i;
+    if(SKIP.test(name)) return;
+    if(/^\d/.test(name)) return;
+    seen.add(key);
+
+    const geocodeQuery = destHint && !name.toLowerCase().includes(destHint.toLowerCase())
+      ? `${name}, ${destHint}`
+      : name;
+
+    results.push({ name, type: type || guessType(name), day: day||null, geocodeQuery });
+  }
+
+  // ── PASS 1: Scan line by line to capture Day context
+  let currentDay = null;
+  const lines = md.split("\n");
+
+  for(const line of lines){
+    // Detect "### Day 1", "**Day 2**", "Day 3:" patterns
+    const dayMatch = line.match(/\bDay\s+(\d+)\b/i);
+    if(dayMatch) currentDay = parseInt(dayMatch[1]);
+
+    // Bold place names: **Hotel Taj** or **Calangute Beach**
+    const boldRe = /\*\*([A-Z][A-Za-z0-9&'.()\-,\/ ]{2,55}?)\*\*/g;
+    let m;
+    while((m=boldRe.exec(line))!==null){
+      const t = m[1].trim();
+      if(looksLikePlace(t)) add(t, guessType(t), currentDay);
+    }
+
+    // Hotel chain keywords — catch "Hotel Leela Palace, Goa" etc.
+    const hotelRe = /\b(Hotel|Resort|Hyatt|Marriott|Hilton|Taj|Leela|Radisson|Novotel|OYO|Lemon Tree|ITC|Oberoi|Trident|Vivanta|Ginger|Park|The (?:Leela|Taj|Park|Westin|Ritz))\s+([A-Z][A-Za-z0-9&'.()\-,\/ ]{1,45})/g;
+    while((m=hotelRe.exec(line))!==null){
+      const full = (m[1]+" "+m[2]).trim().replace(/[.,;]+$/,"");
+      if(looksLikePlace(full)) add(full,"hotel",currentDay);
+    }
+
+    // Place suffixes — Calangute Beach, Aguada Fort, India Gate etc.
+    const placeRe = /\b([A-Z][A-Za-z ]{2,35}(?:Beach|Fort|Temple|Market|Palace|Museum|Park|Lake|Falls|Gate|Garden|Monument|Cafe|Airport|Station|Mahal|Gurdwara|Church|Mosque|Cave|Viewpoint|Hill|Peak|Island|Village))\b/g;
+    while((m=placeRe.exec(line))!==null){
+      if(looksLikePlace(m[1])) add(m[1].trim(), guessType(m[1]), currentDay);
+    }
+
+    // Airports: "Dabolim Airport", "Indira Gandhi International Airport"
+    const airportRe = /\b([A-Z][A-Za-z ]{3,40}(?:International\s+)?Airport)\b/g;
+    while((m=airportRe.exec(line))!==null){
+      add(m[1].trim(),"airport",null);
+    }
+  }
+
+  // ── PASS 2: emoji-tagged hotels 🏨 Hotel Name
+  const emojiRe = /[🏨🏩]\s*([A-Z][A-Za-z0-9&'.()\- ]{3,55}?)(?:\s*[⭐★|]|\s*\d|\n|$)/g;
+  let m;
+  while((m=emojiRe.exec(md))!==null){
+    const t = m[1].trim();
+    if(looksLikePlace(t)) add(t,"hotel",null);
+  }
+
+  return results.slice(0, 18);
+}
+
+function looksLikePlace(t){
+  if(!t || t.length<3 || t.length>80) return false;
+  if(/^\d+$/.test(t)) return false;
+  if(/[₹$€£]/.test(t.slice(0,4))) return false;
+  if(/per night|per day|rating|stars?|\d+\s*night|checkout|check-in/i.test(t)) return false;
+  if(/^(Budget|Mid|Luxury|Deluxe|Standard|Premium|Morning|Afternoon|Evening|Night|Total|Price|Note|Day|Here)$/i.test(t.split(" ")[0])) return false;
+  return true;
+}
+
+function guessDestination(userText){
+  const m = userText.match(/(?:to|in|at|visiting?|for|going to)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/);
+  return m ? m[1] : "";
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN: UPDATE MAP FROM AI RESPONSE
+═══════════════════════════════════════════════ */
+async function updateMapFromResponse(rawFull, userText){
+  if(!mapReady) return;
+
+  // Priority 1: hidden structured JSON from backend system prompt
+  const jsonPlaces = tryExtractLocationsJSON(rawFull);
+  if(jsonPlaces && jsonPlaces.length){
+    showMap(); clearMap();
+    jsonPlaces.forEach(p=>{
+      const id = ++pinIdCounter;
+      p._id = id;
+      p.status = "found";
+      const mk = addMarker(p);
+      p.marker = mk;
+      placeListData.push(p);
+    });
+    renderPlaceList();
+    fitMarkers();
+    setMapStatus(`✅ ${Object.keys(markerMap).length} locations mapped.`,"done");
+    return;
+  }
+
+  // Priority 2: Parse markdown
+  const destHint = guessDestination(userText||rawFull);
+  const places = extractPlacesFromMarkdown(rawFull, destHint);
+
+  if(!places.length){
+    setMapStatus("ℹ️ No specific places detected.","warn");
+    return;
+  }
+
+  showMap();
+
+  // Add to list as pending (don't clear existing pins — accumulate across messages)
+  const startIdx = placeListData.length;
+  places.forEach(p=>{
+    const id = ++pinIdCounter;
+    placeListData.push({ _id:id, name:p.name, type:p.type, day:p.day, status:"pending" });
+  });
+  renderPlaceList();
+  setMapStatus(`<span class="spin">⟳</span> Locating ${places.length} place${places.length>1?"s":""}…`,"loading");
+
+  let found = 0;
+  for(let i=0; i<places.length; i++){
+    const p = places[i];
+    const listEntry = placeListData[startIdx + i];
+    const geo = await geocodeOne(p.geocodeQuery);
+    if(geo){
+      listEntry.lat = geo.lat;
+      listEntry.lng = geo.lng;
+      listEntry.address = geo.address;
+      listEntry.status = "found";
+      const mk = addMarker(listEntry);
+      found++;
+    } else {
+      listEntry.status = "missing";
+    }
+    renderPlaceList();
+    if(i < places.length-1) await sleep(1050); // respect Nominatim rate limit
+  }
+
+  fitMarkers();
+  if(found > 0){
+    setMapStatus(`✅ ${found} of ${places.length} places mapped.`,"done");
+  } else {
+    setMapStatus("⚠️ Could not locate places. Try a more specific query.","warn");
+  }
+}
+
+function tryExtractLocationsJSON(raw){
+  const m = raw.match(/<!--LOCATIONS_JSON:(\[[\s\S]*?\])-->/);
+  if(!m) return null;
+  try{ return JSON.parse(m[1]); }catch(e){ return null; }
+}
+
+/* ═══════════════════════════════════════════════
+   EXPORT HELPERS
+═══════════════════════════════════════════════ */
+function tripTitleFromText(text){
+  const m = text.match(/✈️\s*([A-Za-z ]+)\s*→\s*([A-Za-z ]+)/) || text.match(/from\s+([A-Za-z ]+)\s+to\s+([A-Za-z ]+)/i);
+  if(m) return `${m[1].trim()}-to-${m[2].trim()}`.replace(/\s+/g,"-");
+  return "trip-plan";
+}
+
+function detectResultSections(text){
+  const t = text;
+
+  // ── FLIGHTS ──────────────────────────────────────────────────────────────
+  const hasFlights =
+    /🛫|🛬/.test(t) ||
+    /\b(?:departure|return|outbound|inbound)\s+flights?\b/i.test(t) ||
+    /your\s+flights?\b/i.test(t) ||
+    /flight\s+(?:no|number|#|details)/i.test(t) ||
+    /\b(?:indigo|air\s*india|spicejet|go\s*first|akasa|vistara|emirates|etihad|lufthansa|british\s*airways|singapore\s*airlines?)\b/i.test(t);
+
+  // ── HOTELS ───────────────────────────────────────────────────────────────
+  const hasHotels =
+    /🏨/.test(t) ||
+    /\bhotel[s]?\b/i.test(t) ||                              // word "hotel/hotels" anywhere
+    /\bresort[s]?\b/i.test(t) ||                             // word "resort/resorts"
+    /per\s*night/i.test(t) ||                                // "per night" in any form
+    /₹[\d,]+\s*\/\s*(?:night|nite)/i.test(t) ||             // ₹X/night
+    /💚|🌟|👑/.test(t) ||                                    // budget/mid/luxury emojis
+    /top\s*pick/i.test(t) ||                                 // "Top Pick"
+    /\bcheck.?in\b|\bcheck.?out\b/i.test(t);                // check-in / check-out
+
+  // ── ITINERARY ─────────────────────────────────────────────────────────────
+  const hasItinerary =
+    /day.by.day/i.test(t) ||                                 // "Day-by-Day" or "Day by Day"
+    /\bday\s*[1-9]\b/i.test(t) ||                           // "Day 1", "Day 2" etc — any single one
+    /##\s*(?:day|morning|afternoon|evening)/i.test(t) ||     // ## Day / ## Morning heading
+    /###\s*(?:day|morning|afternoon|evening)/i.test(t) ||
+    /\*\*(?:day\s*[1-9]|morning|afternoon|evening)\b/i.test(t) || // **Day 1** bold
+    /itinerary/i.test(t) ||                                  // word "itinerary" anywhere
+    /travel\s+tips?/i.test(t) ||                             // "Travel Tips" section
+    /what\s+to\s+pack/i.test(t) ||                          // "What to Pack"
+    /weather\s*&\s*what/i.test(t) ||                        // "Weather & What to Pack"
+    /estimated\s+(?:cost|budget|expense)/i.test(t) ||       // cost breakdown table
+    /total\s+estimated/i.test(t) ||                         // "Total Estimated" row
+    /\bsightseeing\b/i.test(t) ||                           // sightseeing mentions
+    /\bday\s+\d+.*\bday\s+\d+/is.test(t);                  // multiple Day N mentions
+
+  return { hasFlights, hasHotels, hasItinerary };
+}
+
+function isExportableResult(text){
+  const t = text.trim();
+  if(t.length < 80) return false;
+  const { hasFlights, hasHotels, hasItinerary } = detectResultSections(t);
+  return hasFlights || hasHotels || hasItinerary;
+}
+
+function downloadBlob(content, filename, mime){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportAsMarkdown(text){ downloadBlob(text,`${tripTitleFromText(text)}.md`,"text/markdown"); }
+function exportAsText(text){
+  const plain=text.replace(/^#{1,6}\s*/gm,"").replace(/\*\*(.*?)\*\*/g,"$1").replace(/\*(.*?)\*/g,"$1").replace(/`(.*?)`/g,"$1").replace(/^\s*[-—]{3,}\s*$/gm,"");
+  downloadBlob(plain,`${tripTitleFromText(text)}.txt`,"text/plain");
+}
+
+function exportAsPDF(text){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"a4"});
+  const pw=doc.internal.pageSize.getWidth(), margin=40, mw=pw-margin*2;
+  let y=50;
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(29,78,216);
+  doc.text("AI Travel Agent — Trip Plan",margin,y); y+=26;
+  doc.setDrawColor(220,226,235); doc.line(margin,y,pw-margin,y); y+=18;
+  for(let raw of text.split("\n")){
+    let line=raw.trim(); if(!line){y+=6;continue;}
+    let isH1=false,isH2=false,isH3=false,isBullet=false;
+    if(/^#\s+/.test(line)){line=line.replace(/^#\s+/,"");isH1=true;}
+    else if(/^##\s+/.test(line)){line=line.replace(/^##\s+/,"");isH2=true;}
+    else if(/^###\s+/.test(line)){line=line.replace(/^###\s+/,"");isH3=true;}
+    else if(/^[-•]\s+/.test(line)){line=line.replace(/^[-•]\s+/,"");isBullet=true;}
+    line=line.replace(/\*\*(.*?)\*\*/g,"$1").replace(/\*(.*?)\*/g,"$1").replace(/`/g,"");
+    if(/^[-|]+$/.test(line)) continue;
+    line=line.replace(/^\|/,"").replace(/\|$/,"").replace(/\|/g," · ");
+    if(isH1){doc.setFont("helvetica","bold");doc.setFontSize(15);doc.setTextColor(29,78,216);y+=8;}
+    else if(isH2){doc.setFont("helvetica","bold");doc.setFontSize(13);doc.setTextColor(30,64,175);y+=6;}
+    else if(isH3){doc.setFont("helvetica","bold");doc.setFontSize(12);doc.setTextColor(30,41,59);y+=4;}
+    else{doc.setFont("helvetica","normal");doc.setFontSize(10.5);doc.setTextColor(30,41,59);}
+    const wrapped=doc.splitTextToSize((isBullet?"•  ":"")+line,mw);
+    for(const wl of wrapped){
+      if(y>doc.internal.pageSize.getHeight()-50){doc.addPage();y=50;}
+      doc.text(wl,margin,y); y+=(isH1?20:isH2?18:isH3?16:15);
+    }
+    if(isH1||isH2) y+=2;
+  }
+  doc.save(`${tripTitleFromText(text)}.pdf`);
+}
+
+async function copyToClipboard(text,btn){
+  try{
+    await navigator.clipboard.writeText(text);
+    btn.classList.add("copied");
+    const orig=btn.innerHTML; btn.innerHTML='<span class="ico">✅</span> Copied!';
+    setTimeout(()=>{btn.classList.remove("copied");btn.innerHTML=orig;},1600);
+  }catch(e){ alert("Could not copy — please select manually."); }
+}
+
+function resultTypeLabel(text){
+  const {hasFlights,hasHotels,hasItinerary}=detectResultSections(text);
+  const p=[];
+  if(hasItinerary) p.push("Itinerary");
+  if(hasFlights) p.push("Flights");
+  if(hasHotels) p.push("Hotels");
+  return p.length ? p.join(" + ") : "Result";
+}
+
+function buildExportBar(rawText){
+  const bar=document.createElement("div"); bar.className="export-bar";
+  const label=document.createElement("span");
+  label.style.cssText="font-size:11px;color:#94a3b8;align-self:center;margin-right:2px;font-weight:600;text-transform:uppercase;letter-spacing:.03em";
+  label.textContent=`Export ${resultTypeLabel(rawText)}:`;
+  bar.appendChild(label);
+  const mkBtn=(icon,lbl,handler)=>{
+    const b=document.createElement("button"); b.className="export-btn";
+    b.innerHTML=`<span class="ico">${icon}</span> ${lbl}`; b.onclick=handler; return b;
+  };
+  bar.appendChild(mkBtn("📄","PDF",()=>exportAsPDF(rawText)));
+  bar.appendChild(mkBtn("📝","Markdown",()=>exportAsMarkdown(rawText)));
+  bar.appendChild(mkBtn("🗒️","Text",()=>exportAsText(rawText)));
+  bar.appendChild(mkBtn("📋","Copy",e=>copyToClipboard(rawText,e.currentTarget)));
+  return bar;
+}
+
+/* ═══════════════════════════════════════════════
    UI HELPERS
-   ========================================================= */
+═══════════════════════════════════════════════ */
 function fill(t){ qs("msg").value=t; qs("msg").focus(); }
-function status(t){ qs("auth-status").textContent=t; }
+function authStatus(t){ qs("auth-status").textContent=t; }
 function qs(id){ return document.getElementById(id); }
 function hideEmpty(){ const e=qs("empty"); if(e) e.remove(); }
 
 function cleanForDisplay(raw){
-  return raw
-    .replace(/\n*<!--LOCATIONS_JSON:[\s\S]*?-->/g,"")
-    .replace(/\n*<!--CHAT_ID:[^>]+-->/g,"")
-    .trimEnd();
+  return raw.replace(/\n*<!--LOCATIONS_JSON:[\s\S]*?-->/g,"").replace(/\n*<!--CHAT_ID:[^>]+-->/g,"").trimEnd();
 }
 
-function addRow(role,content){
+function addRow(role, content, withExport){
   hideEmpty();
   const box=qs("messages");
   const row=document.createElement("div"); row.className=`row ${role}`;
@@ -451,10 +705,15 @@ function addRow(role,content){
     av.textContent=role==="user"?"👤":"🤖";
     row.appendChild(av);
   }
+  const col=document.createElement("div"); col.className="msg-col";
   const bub=document.createElement("div"); bub.className=`bubble ${role}`;
-  bub.innerHTML=role==="assistant"?marked.parse(content||""):"";
-  if(role!=="assistant") bub.textContent=content;
-  row.appendChild(bub); box.appendChild(row);
+  if(role==="assistant") bub.innerHTML=marked.parse(content||"");
+  else bub.textContent=content;
+  col.appendChild(bub);
+  if(role==="assistant" && withExport && content && isExportableResult(content)){
+    col.appendChild(buildExportBar(content));
+  }
+  row.appendChild(col); box.appendChild(row);
   box.scrollTop=box.scrollHeight;
   return bub;
 }
@@ -474,21 +733,18 @@ function removeTyping(){ const e=qs("typing-row"); if(e) e.remove(); }
 function resetChat(){
   qs("messages").innerHTML=`<div id="empty">
     <div class="ei">🌍</div><h2>Where to next?</h2>
-    <p>Tell me where you want to go — give me all details at once or I'll guide you step by step.</p>
+    <p>Tell me where you want to go — all details at once or I'll guide you step by step.</p>
     <div class="chips">
       <div class="chip" onclick="fill('Plan a trip from Delhi to Goa on 15 Jun returning 22 Jun')">✈️ Delhi → Goa</div>
       <div class="chip" onclick="fill('I want to fly from Mumbai to Bangkok on 10 Jul for 7 days')">🌏 Mumbai → Bangkok</div>
       <div class="chip" onclick="fill('Trip from Bangalore to Manali')">🏔️ Bangalore → Manali</div>
     </div></div>`;
   clearMap();
-  qs("map-empty").style.display="flex";
-  qs("map").style.display="none";
-  setStatus("");
 }
 
-/* =========================================================
+/* ═══════════════════════════════════════════════
    AUTH
-   ========================================================= */
+═══════════════════════════════════════════════ */
 async function authCall(path,u,p){
   const r=await fetch(`${BASE}/chat/${path}?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`,{method:"POST"});
   const d=await r.json();
@@ -497,31 +753,31 @@ async function authCall(path,u,p){
 }
 qs("login-btn").onclick=async()=>{
   const u=qs("u").value.trim(),p=qs("p").value.trim();
-  if(!u||!p) return status("Enter username and password");
+  if(!u||!p) return authStatus("Enter username and password");
   try{ const d=await authCall("login",u,p); userId=d.user_id; onLogin(u); loadChats(); }
-  catch(e){ status("❌ "+e.message); }
+  catch(e){ authStatus("❌ "+e.message); }
 };
 qs("reg-btn").onclick=async()=>{
   const u=qs("u").value.trim(),p=qs("p").value.trim();
-  if(!u||!p) return status("Enter username and password");
+  if(!u||!p) return authStatus("Enter username and password");
   try{ const d=await authCall("register",u,p); userId=d.user_id; onLogin(u); }
-  catch(e){ status("❌ "+e.message); }
+  catch(e){ authStatus("❌ "+e.message); }
 };
 qs("logout-btn").onclick=()=>{
   userId=null; chatId=null;
   ["u","p","login-btn","reg-btn"].forEach(id=>qs(id).style.display="");
   qs("logout-btn").style.display="none";
-  status(""); qs("chat-list").innerHTML=""; resetChat();
+  authStatus(""); qs("chat-list").innerHTML=""; resetChat();
 };
 function onLogin(name){
-  status(`👤 ${name}`);
+  authStatus(`👤 ${name}`);
   ["u","p","login-btn","reg-btn"].forEach(id=>qs(id).style.display="none");
   qs("logout-btn").style.display="";
 }
 
-/* =========================================================
+/* ═══════════════════════════════════════════════
    SIDEBAR
-   ========================================================= */
+═══════════════════════════════════════════════ */
 async function loadChats(){
   if(!userId) return;
   try{
@@ -539,7 +795,7 @@ async function loadChats(){
 }
 
 async function openChat(id,el){
-  chatId=id; resetChat();
+  chatId=id; clearMap(); resetChat();
   document.querySelectorAll(".c-item").forEach(i=>i.classList.remove("active"));
   if(el) el.classList.add("active");
   try{
@@ -548,7 +804,7 @@ async function openChat(id,el){
     let lastUser="";
     for(const m of msgs){
       if(m.role==="assistant"){
-        addRow("assistant",cleanForDisplay(m.message));
+        addRow("assistant",cleanForDisplay(m.message),true);
         await updateMapFromResponse(m.message,lastUser);
       } else {
         addRow("user",m.message); lastUser=m.message;
@@ -557,22 +813,14 @@ async function openChat(id,el){
   }catch(e){}
 }
 
-qs("new-btn").onclick=()=>{
-  chatId=null; resetChat();
-  document.querySelectorAll(".c-item").forEach(e=>e.classList.remove("active"));
-};
+qs("new-btn").onclick=()=>{ chatId=null; resetChat(); document.querySelectorAll(".c-item").forEach(e=>e.classList.remove("active")); };
 
-/* =========================================================
+/* ═══════════════════════════════════════════════
    SEND
-   ========================================================= */
+═══════════════════════════════════════════════ */
 qs("send").onclick=send;
-qs("msg").addEventListener("keydown",e=>{
-  if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); }
-});
-qs("msg").addEventListener("input",function(){
-  this.style.height="auto";
-  this.style.height=Math.min(this.scrollHeight,130)+"px";
-});
+qs("msg").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} });
+qs("msg").addEventListener("input",function(){ this.style.height="auto"; this.style.height=Math.min(this.scrollHeight,130)+"px"; });
 
 async function send(){
   if(!userId){ addRow("system","⚠️ Please login first."); return; }
@@ -597,8 +845,9 @@ async function send(){
     const box=qs("messages");
     const row=document.createElement("div"); row.className="row assistant";
     const av=document.createElement("div"); av.className="avatar"; av.textContent="🤖";
+    const col=document.createElement("div"); col.className="msg-col";
     const bub=document.createElement("div"); bub.className="bubble assistant cursor";
-    row.appendChild(av); row.appendChild(bub); box.appendChild(row);
+    col.appendChild(bub); row.appendChild(av); row.appendChild(col); box.appendChild(row);
 
     while(true){
       const {done,value}=await reader.read(); if(done) break;
@@ -609,11 +858,13 @@ async function send(){
     }
 
     bub.classList.remove("cursor");
-    bub.innerHTML=marked.parse(cleanForDisplay(full));
+    const finalClean=cleanForDisplay(full);
+    bub.innerHTML=marked.parse(finalClean);
+    if(isExportableResult(finalClean)) col.appendChild(buildExportBar(finalClean));
     box.scrollTop=box.scrollHeight;
 
-    // Update map — uses JSON if available, else geocodes automatically
-    updateMapFromResponse(full, text);
+    // ── Auto-update map from the full AI response
+    await updateMapFromResponse(full, text);
     loadChats();
   }catch(e){
     removeTyping();
@@ -622,10 +873,14 @@ async function send(){
   qs("send").disabled=false;
 }
 
-/* =========================================================
-   INIT
-   ========================================================= */
-initMap();
+/* ═══════════════════════════════════════════════
+   INIT — map must init AFTER layout is painted
+   so Leaflet can measure the container correctly
+═══════════════════════════════════════════════ */
+window.addEventListener("DOMContentLoaded", ()=>{
+  // Use a short timeout to ensure browser has laid out the flex container
+  setTimeout(initMap, 100);
+});
 </script>
 </body>
 </html>

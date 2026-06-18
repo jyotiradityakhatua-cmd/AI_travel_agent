@@ -210,20 +210,75 @@
 #     return results
 
 
+# import requests
+# import json
+
+# MODEL = "llama3"
+
+
+# def search_flight(source, destination, departure_date, return_date=""):
+#     """Call Ollama to generate realistic flight options. Returns raw text."""
+#     prompt = f"""Generate realistic flight options as a simple text list.
+
+# Route: {source} → {destination}
+# Departure: {departure_date}
+# {"Return: " + return_date if return_date else "One-way"}
+
+# List 4 departure flights and {"4 return flights" if return_date else "no return flights"}.
+
+# For each flight include:
+# - Airline name
+# - Flight number
+# - Departure time → Arrival time
+# - Duration
+# - Price in INR
+
+# Format each flight on one line like:
+# IndiGo 6E-201 | 06:00 → 08:30 | 2h 30m | ₹4,500
+
+# if user asks for the flight on a particular date and return date is not meintion then give departure flights only if meintioned then only you can add return flights
+
+
+# Keep it simple — just the data, no headers or explanation.
+# """
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": False},
+#         timeout=120,
+#     )
+#     r.raise_for_status()
+#     return r.json()["response"]
+
+
 import requests
 import json
 
-MODEL = "llama3"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MODEL =os.getenv("OLLAMA_MODEL")
 
 
-def search_flight(source, destination, departure_date, return_date=""):
+def search_flight(source, destination, departure_date, return_date="", budget=""):
     """Call Ollama to generate realistic flight options. Returns raw text."""
+
+    budget_instruction = ""
+    if budget:
+        budget_instruction = f"""
+BUDGET CONSTRAINT: The user's total trip budget is {budget}.
+- Prioritize affordable flights that leave room for hotels and activities within this budget.
+- Always show the cheapest option first.
+- Flag any flight that alone exceeds {budget} with a ⚠️ warning.
+"""
+
     prompt = f"""Generate realistic flight options as a simple text list.
 
 Route: {source} → {destination}
 Departure: {departure_date}
 {"Return: " + return_date if return_date else "One-way"}
-
+{budget_instruction}
 List 4 departure flights and {"4 return flights" if return_date else "no return flights"}.
 
 For each flight include:
@@ -236,8 +291,7 @@ For each flight include:
 Format each flight on one line like:
 IndiGo 6E-201 | 06:00 → 08:30 | 2h 30m | ₹4,500
 
-if user asks for the flight on a particular date and return date is not meintion then give departure flights only if meintioned then only you can add return flights
-
+If user asks for a flight on a particular date and return date is not mentioned then give departure flights only.
 
 Keep it simple — just the data, no headers or explanation.
 """

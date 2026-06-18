@@ -147,9 +147,15 @@
 #     return parsed if parsed else {}
 
 import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MODEL =os.getenv("OLLAMA_MODEL")
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "llama3"
+
 
 def run_chat_llm(ctx, user_query):
     messages = [

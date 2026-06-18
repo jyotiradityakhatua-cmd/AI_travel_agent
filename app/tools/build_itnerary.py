@@ -822,19 +822,903 @@
 #         except Exception:
 #             continue
 
-import json
-import requests
 
-MODEL = "llama3"
+
+
+
+# import json
+# import requests
+
+# MODEL = "llama3"
+
+
+# def build_itnerary(data: dict, flights: str, hotels: str):
+#     src  = data.get("source", "")
+#     dst  = data.get("destination", "")
+#     dep  = data.get("departure_date", "")
+#     ret  = data.get("return_date", "")
+#     days = data.get("days", 3)
+
+#     prompt = f"""You are a warm, expert travel planner. Write a complete, detailed travel itinerary in Markdown.
+# Be specific, practical, and conversational — like a knowledgeable friend planning this trip for someone.
+# Never skip any day. Never say "etc" or "and so on".
+
+# TRIP:
+# - From: {src} → To: {dst}
+# - Departure: {dep} | Return: {ret}
+# - Duration: {days} days
+
+# FLIGHTS AVAILABLE:
+# {flights}
+
+# HOTELS AVAILABLE:
+# {hotels}
+
+# ---
+
+# # ✈️ {src} → {dst} | {dep} – {ret} ({days} Days)
+
+# ---
+
+# ## 🛫 Your Flights
+# Pick the best departure and return flight from the list above.
+# Show: **Airline · Flight No · Time · Duration · Price**
+# Give one sentence on why you picked it.
+
+# ---
+
+# ## 🏨 Your Hotel
+# Pick the best hotel from the list above.
+# Show: **Hotel Name · Price/night · Total ({days} nights)**
+# Give one sentence on why it suits this trip.
+
+# ---
+
+# ## 📅 Day-by-Day Plan
+# Write EVERY day. Day 1 through Day {days}. No exceptions.
+
+# ### Day 1 — Arrival in {dst}
+# **🌅 Morning:** [arrival + check-in + first impressions]
+# **☀️ Afternoon:** [first activity or nearby attraction]
+# **🌆 Evening:** [dinner spot + evening plan]
+# **🍴 Eat tonight:** [specific dish + restaurant name in {dst}]
+
+# ### Day 2
+# **🌅 Morning:** ...
+# **☀️ Afternoon:** ...
+# **🌆 Evening:** ...
+# **🍴 Eat tonight:** ...
+
+# [Continue this exact format for Days 3 through {days - 1}]
+
+# ### Day {days} — Departure
+# **🌅 Morning:** [last activity + checkout]
+# **☀️ Afternoon:** [airport transfer]
+# **✈️ Flight home:** [return flight details from your chosen flight above]
+
+# ---
+
+# ## 🍽️ Must-Try Foods in {dst}
+# Exactly 6 dishes. Format:
+# **Dish name** — one line description of taste + where to find it.
+
+# ---
+
+# ## 🚌 Getting Around {dst}
+# Practical transport guide covering:
+# - Metro/local train (if available) — fares
+# - Auto-rickshaw — typical fare range
+# - Cab apps (Ola/Uber) — typical fare range
+# - Tips for getting around like a local
+
+# ---
+
+# ## 💰 Full Budget Breakdown
+
+# | Category | Cost (INR) |
+# |---|---|
+# | Flights — return | ₹X,XXX |
+# | Hotel — {days} nights | ₹X,XXX |
+# | Food & dining | ₹X,XXX |
+# | Local transport | ₹X,XXX |
+# | Activities & entry fees | ₹X,XXX |
+# | Shopping & misc | ₹X,XXX |
+# | **Total Estimated** | **₹XX,XXX** |
+
+# ---
+
+# ## 💡 Top 5 Travel Tips for {dst}
+# Write 5 practical, specific tips — not generic advice.
+
+# ---
+
+# ## 🌤️ Weather & What to Pack
+# What weather to expect in {dst} from {dep} to {ret}.
+# Specific packing list for this trip.
+# """
+
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": True},
+#         stream=True,
+#         timeout=300,
+#     )
+#     r.raise_for_status()
+
+#     for line in r.iter_lines(decode_unicode=True):
+#         if not line:
+#             continue
+#         try:
+#             chunk = json.loads(line)
+#             token = chunk.get("response", "")
+#             if token:
+#                 yield token
+#         except Exception:
+#             continue
+
+
+# import json
+# import re
+# import requests
+
+# MODEL = "llama3"
+
+
+# def _stream_generate(prompt: str):
+#     """Stream tokens from /api/generate."""
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": True},
+#         stream=True,
+#         timeout=300,
+#     )
+#     r.raise_for_status()
+#     for line in r.iter_lines(decode_unicode=True):
+#         if not line:
+#             continue
+#         try:
+#             chunk = json.loads(line)
+#             token = chunk.get("response", "")
+#             if token:
+#                 yield token
+#         except Exception:
+#             continue
+
+
+# def _generate_full(prompt: str) -> str:
+#     """Non-streaming call — used to get the coordinates JSON reliably."""
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": False},
+#         timeout=120,
+#     )
+#     r.raise_for_status()
+#     return r.json().get("response", "").strip()
+
+
+# def _extract_json_array(text: str) -> list:
+#     """Pull a JSON array out of LLM output, tolerant of fences/extra text."""
+#     text = re.sub(r"```(?:json)?|```", "", text).strip()
+#     try:
+#         d = json.loads(text)
+#         if isinstance(d, list):
+#             return d
+#     except Exception:
+#         pass
+#     m = re.search(r"\[[\s\S]*\]", text)
+#     if m:
+#         try:
+#             d = json.loads(m.group())
+#             if isinstance(d, list):
+#                 return d
+#         except Exception:
+#             pass
+#     return []
+
+
+# def _get_locations_json(dst: str, hotels: str, days: int) -> list:
+#     """
+#     Ask the LLM for precise real-world coordinates of:
+#     - the recommended hotel
+#     - several real attractions / restaurants in the destination
+#     All locations must be physically located in `dst`.
+#     """
+#     prompt = f"""You are a geography expert with precise knowledge of real-world coordinates.
+
+# Destination: {dst}
+
+# Hotel options to choose from:
+# {hotels}
+
+# I am about to write a {days}-day itinerary for {dst}. List the EXACT real-world locations to pin on a map:
+# 1. The single best hotel from the list above (pick one).
+# 2. 6 to 10 well-known real attractions, landmarks, beaches, markets, or restaurant areas actually located in or immediately around {dst} — places a real {days}-day itinerary for {dst} would visit.
+
+# CRITICAL RULES:
+# - ALL locations must be REAL and physically located in or within city limits of {dst}. Never invent fictional places or use coordinates from a different city.
+# - Use your actual knowledge of {dst}'s geography for latitude/longitude — be as precise as possible (4+ decimal places).
+# - Return ONLY a raw JSON array, nothing else. No markdown, no explanation, no text before or after.
+
+# Format exactly like this:
+# [
+#   {{"name":"Exact Hotel Name","type":"hotel","lat":15.2993,"lng":74.1240,"address":"Short area description"}},
+#   {{"name":"Attraction Name","type":"attraction","lat":15.5527,"lng":73.7517,"address":"Short area description"}},
+#   {{"name":"Restaurant or Food Area Name","type":"restaurant","lat":15.5037,"lng":73.8278,"address":"Short area description"}}
+# ]
+
+# type must be one of: hotel, attraction, restaurant, transport, other.
+# Output ONLY the JSON array now:
+# """
+#     try:
+#         raw = _generate_full(prompt)
+#         candidates = _extract_json_array(raw)
+#     except Exception as e:
+#         print(f"[ITINERARY] Location JSON failed: {e}")
+#         return []
+
+#     clean = []
+#     for loc in candidates:
+#         if (
+#             isinstance(loc, dict)
+#             and loc.get("name")
+#             and isinstance(loc.get("lat"), (int, float))
+#             and isinstance(loc.get("lng"), (int, float))
+#         ):
+#             clean.append({
+#                 "name": loc["name"],
+#                 "type": loc.get("type", "other"),
+#                 "lat": loc["lat"],
+#                 "lng": loc["lng"],
+#                 "address": loc.get("address", dst),
+#             })
+#     return clean
+
+
+# def build_itnerary(data: dict, flights: str, hotels: str):
+#     src  = data.get("source", "")
+#     dst  = data.get("destination", "")
+#     dep  = data.get("departure_date", "")
+#     ret  = data.get("return_date", "")
+#     days = data.get("days", 3)
+
+#     # ── Step 1: get precise coordinates for hotel + attractions ──────────────
+#     locations = _get_locations_json(dst, hotels, days)
+
+#     place_names_hint = ""
+#     if locations:
+#         names = ", ".join(f'"{l["name"]}"' for l in locations)
+#         place_names_hint = (
+#             f"\nIMPORTANT: When mentioning the hotel or attractions below, "
+#             f"use these EXACT names so they match the map: {names}\n"
+#         )
+
+#     # ── Step 2: build the itinerary text ──────────────────────────────────────
+#     prompt = f"""You are a warm, expert travel planner. Write a complete, detailed travel itinerary in Markdown.
+# Be specific, practical, and conversational — like a knowledgeable friend planning this trip for someone.
+# Never skip any day. Never say "etc" or "and so on".
+
+# TRIP:
+# - From: {src} → To: {dst}
+# - Departure: {dep} | Return: {ret}
+# - Duration: {days} days
+
+# FLIGHTS AVAILABLE:
+# {flights}
+
+# HOTELS AVAILABLE:
+# {hotels}
+# {place_names_hint}
+# ---
+
+# # ✈️ {src} → {dst} | {dep} – {ret} ({days} Days)
+
+# ---
+
+# ## 🛫 Your Flights
+# Pick the best departure and return flight from the list above.
+# Show: **Airline · Flight No · Time · Duration · Price**
+# Give one sentence on why you picked it.
+
+# ---
+
+# ## 🏨 Your Hotel
+# Pick the best hotel from the list above (use the exact name from the hint if provided).
+# Show: **Hotel Name · Price/night · Total ({days} nights)**
+# Give one sentence on why it suits this trip.
+
+# ---
+
+# ## 📅 Day-by-Day Plan
+# Write EVERY day. Day 1 through Day {days}. No exceptions.
+# When mentioning attractions, use the exact names from the hint above where relevant.
+
+# ### Day 1 — Arrival in {dst}
+# **🌅 Morning:** [arrival + check-in + first impressions]
+# **☀️ Afternoon:** [first activity or nearby attraction]
+# **🌆 Evening:** [dinner spot + evening plan]
+# **🍴 Eat tonight:** [specific dish + restaurant name in {dst}]
+
+# ### Day 2
+# **🌅 Morning:** ...
+# **☀️ Afternoon:** ...
+# **🌆 Evening:** ...
+# **🍴 Eat tonight:** ...
+
+# [Continue this exact format for Days 3 through {days - 1}]
+
+# ### Day {days} — Departure
+# **🌅 Morning:** [last activity + checkout]
+# **☀️ Afternoon:** [airport transfer]
+# **✈️ Flight home:** [return flight details from your chosen flight above]
+
+# ---
+
+# ## 🍽️ Must-Try Foods in {dst}
+# Exactly 6 dishes. Format:
+# **Dish name** — one line description of taste + where to find it.
+
+# ---
+
+# ## 🚌 Getting Around {dst}
+# Practical transport guide covering:
+# - Metro/local train (if available) — fares
+# - Auto-rickshaw — typical fare range
+# - Cab apps (Ola/Uber) — typical fare range
+# - Tips for getting around like a local
+
+# ---
+
+# ## 💰 Full Budget Breakdown
+
+# | Category | Cost (INR) |
+# |---|---|
+# | Flights — return | ₹X,XXX |
+# | Hotel — {days} nights | ₹X,XXX |
+# | Food & dining | ₹X,XXX |
+# | Local transport | ₹X,XXX |
+# | Activities & entry fees | ₹X,XXX |
+# | Shopping & misc | ₹X,XXX |
+# | **Total Estimated** | **₹XX,XXX** |
+
+# ---
+
+# ## 💡 Top 5 Travel Tips for {dst}
+# Write 5 practical, specific tips — not generic advice.
+
+# ---
+
+# ## 🌤️ Weather & What to Pack
+# What weather to expect in {dst} from {dep} to {ret}.
+# Specific packing list for this trip.
+# """
+
+#     # Stream the itinerary text
+#     for token in _stream_generate(prompt):
+#         yield token
+
+#     # ── Step 3: append hidden JSON tag for the frontend map ───────────────────
+#     if locations:
+#         json_str = json.dumps(locations, ensure_ascii=False)
+#         yield f"\n\n<!--LOCATIONS_JSON:{json_str}-->"
+
+
+
+# import json
+# import re
+# import math
+# import time
+# import requests
+
+# MODEL = "llama3"
+
+# NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+# NOMINATIM_HEADERS = {"User-Agent": "ai-travel-agent/1.0"}
+
+# # Max distance (km) a place is allowed to be from the destination city center
+# # before we discard it as a hallucinated/wrong coordinate.
+# MAX_DISTANCE_KM = 60
+
+
+# def _stream_generate(prompt: str):
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": True},
+#         stream=True,
+#         timeout=300,
+#     )
+#     r.raise_for_status()
+#     for line in r.iter_lines(decode_unicode=True):
+#         if not line:
+#             continue
+#         try:
+#             chunk = json.loads(line)
+#             token = chunk.get("response", "")
+#             if token:
+#                 yield token
+#         except Exception:
+#             continue
+
+
+# def _generate_full(prompt: str) -> str:
+#     r = requests.post(
+#         "http://localhost:11434/api/generate",
+#         json={"model": MODEL, "prompt": prompt, "stream": False},
+#         timeout=120,
+#     )
+#     r.raise_for_status()
+#     return r.json().get("response", "").strip()
+
+
+# def _extract_json_array(text: str) -> list:
+#     text = re.sub(r"```(?:json)?|```", "", text).strip()
+#     try:
+#         d = json.loads(text)
+#         if isinstance(d, list):
+#             return d
+#     except Exception:
+#         pass
+#     m = re.search(r"\[[\s\S]*\]", text)
+#     if m:
+#         try:
+#             d = json.loads(m.group())
+#             if isinstance(d, list):
+#                 return d
+#         except Exception:
+#             pass
+#     return []
+
+
+# def _haversine_km(lat1, lng1, lat2, lng2) -> float:
+#     R = 6371.0
+#     p1, p2 = math.radians(lat1), math.radians(lat2)
+#     dphi = math.radians(lat2 - lat1)
+#     dlmb = math.radians(lng2 - lng1)
+#     a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+#     return 2 * R * math.asin(math.sqrt(a))
+
+
+# def _geocode(query: str):
+#     """Real geocoding via Nominatim (OpenStreetMap) — free, no API key."""
+#     try:
+#         r = requests.get(
+#             NOMINATIM_URL,
+#             params={"q": query, "format": "json", "limit": 1},
+#             headers=NOMINATIM_HEADERS,
+#             timeout=10,
+#         )
+#         r.raise_for_status()
+#         data = r.json()
+#         if data:
+#             return float(data[0]["lat"]), float(data[0]["lon"]), data[0].get("display_name", query)
+#     except Exception as e:
+#         print(f"[GEOCODE] failed for '{query}': {e}")
+#     return None
+
+
+# def _get_destination_anchor(dst: str):
+#     """Get the real-world center coordinates of the destination city."""
+#     geo = _geocode(dst)
+#     if geo:
+#         lat, lng, _ = geo
+#         return lat, lng
+#     return None, None
+
+
+# def _get_locations_json(dst: str, hotels: str, days: int) -> list:
+#     """
+#     Step 1: ask the LLM to NAME real hotels/attractions (text only, no coordinates —
+#              LLMs are unreliable at exact lat/lng and can drift into the wrong country).
+#     Step 2: geocode each name for real via Nominatim, anchored to the destination city.
+#     Step 3: discard any result that lands implausibly far from the destination
+#              (catches wrong-country mismatches like "Delhi" resolving near Pakistan).
+#     """
+#     name_prompt = f"""Destination: {dst}
+
+# Hotel options to choose from:
+# {hotels}
+
+# I am about to write a {days}-day itinerary for {dst}. List ONLY real-world place NAMES (no coordinates) to pin on a map:
+# 1. The single best hotel from the list above (pick one) — use its exact name.
+# 2. 6 to 10 well-known REAL attractions, landmarks, beaches, markets, or famous restaurant areas that are actually located in {dst} — places a real {days}-day itinerary for {dst} would visit.
+
+# Return ONLY a raw JSON array, nothing else. No markdown, no explanation.
+
+# Format exactly like this:
+# [
+#   {{"name":"Exact Hotel Name","type":"hotel"}},
+#   {{"name":"Attraction Name","type":"attraction"}},
+#   {{"name":"Restaurant or Food Area Name","type":"restaurant"}}
+# ]
+
+# type must be one of: hotel, attraction, restaurant, transport, other.
+# Output ONLY the JSON array now:
+# """
+#     try:
+#         raw = _generate_full(name_prompt)
+#         named = _extract_json_array(raw)
+#     except Exception as e:
+#         print(f"[ITINERARY] Name list failed: {e}")
+#         return []
+
+#     if not named:
+#         return []
+
+#     # Anchor: real coordinates of the destination city itself
+#     anchor_lat, anchor_lng = _get_destination_anchor(dst)
+
+#     clean = []
+#     for item in named:
+#         if not isinstance(item, dict) or not item.get("name"):
+#             continue
+#         name = item["name"].strip()
+#         place_type = item.get("type", "other")
+
+#         # Geocode the place, scoped to the destination for accuracy
+#         geo = _geocode(f"{name}, {dst}")
+#         if not geo:
+#             # Fallback: try the name alone
+#             geo = _geocode(name)
+#         if not geo:
+#             continue
+
+#         lat, lng, display_name = geo
+
+#         # Sanity check: discard results too far from the destination anchor
+#         if anchor_lat is not None:
+#             dist = _haversine_km(anchor_lat, anchor_lng, lat, lng)
+#             if dist > MAX_DISTANCE_KM:
+#                 print(f"[ITINERARY] Discarding '{name}' — {dist:.0f}km from {dst} (likely wrong match)")
+#                 continue
+
+#         clean.append({
+#             "name": name,
+#             "type": place_type,
+#             "lat": lat,
+#             "lng": lng,
+#             "address": display_name,
+#         })
+
+#         time.sleep(1)  # respect Nominatim's 1 request/sec rate limit
+
+#     return clean
+
+
+# def build_itnerary(data: dict, flights: str, hotels: str):
+#     src  = data.get("source", "")
+#     dst  = data.get("destination", "")
+#     dep  = data.get("departure_date", "")
+#     ret  = data.get("return_date", "")
+#     days = data.get("days", 3)
+
+#     # ── Step 1: get real, geocoded coordinates for hotel + attractions ───────
+#     locations = _get_locations_json(dst, hotels, days)
+
+#     place_names_hint = ""
+#     if locations:
+#         names = ", ".join(f'"{l["name"]}"' for l in locations)
+#         place_names_hint = (
+#             f"\nIMPORTANT: When mentioning the hotel or attractions below, "
+#             f"use these EXACT names so they match the map: {names}\n"
+#         )
+
+#     # ── Step 2: build the itinerary text ──────────────────────────────────────
+#     prompt = f"""You are a warm, expert travel planner. Write a complete, detailed travel itinerary in Markdown.
+# Be specific, practical, and conversational — like a knowledgeable friend planning this trip for someone.
+# Never skip any day. Never say "etc" or "and so on".
+
+# TRIP:
+# - From: {src} → To: {dst}
+# - Departure: {dep} | Return: {ret}
+# - Duration: {days} days
+
+# FLIGHTS AVAILABLE:
+# {flights}
+
+# HOTELS AVAILABLE:
+# {hotels}
+# {place_names_hint}
+# ---
+
+# # ✈️ {src} → {dst} | {dep} – {ret} ({days} Days)
+
+# ---
+
+# ## 🛫 Your Flights
+# Pick the best departure and return flight from the list above.
+# Show: **Airline · Flight No · Time · Duration · Price**
+# Give one sentence on why you picked it.
+
+# ---
+
+# ## 🏨 Your Hotel
+# Pick the best hotel from the list above (use the exact name from the hint if provided).
+# Show: **Hotel Name · Price/night · Total ({days} nights)**
+# Give one sentence on why it suits this trip.
+
+# ---
+
+# ## 📅 Day-by-Day Plan
+# Write EVERY day. Day 1 through Day {days}. No exceptions.
+# When mentioning attractions, use the exact names from the hint above where relevant.
+
+# ### Day 1 — Arrival in {dst}
+# **🌅 Morning:** [arrival + check-in + first impressions]
+# **☀️ Afternoon:** [first activity or nearby attraction]
+# **🌆 Evening:** [dinner spot + evening plan]
+# **🍴 Eat tonight:** [specific dish + restaurant name in {dst}]
+
+# ### Day 2
+# **🌅 Morning:** ...
+# **☀️ Afternoon:** ...
+# **🌆 Evening:** ...
+# **🍴 Eat tonight:** ...
+
+# [Continue this exact format for Days 3 through {days - 1}]
+
+# ### Day {days} — Departure
+# **🌅 Morning:** [last activity + checkout]
+# **☀️ Afternoon:** [airport transfer]
+# **✈️ Flight home:** [return flight details from your chosen flight above]
+
+# ---
+
+# ## 🍽️ Must-Try Foods in {dst}
+# Exactly 6 dishes. Format:
+# **Dish name** — one line description of taste + where to find it.
+
+# ---
+
+# ## 🚌 Getting Around {dst}
+# Practical transport guide covering:
+# - Metro/local train (if available) — fares
+# - Auto-rickshaw — typical fare range
+# - Cab apps (Ola/Uber) — typical fare range
+# - Tips for getting around like a local
+
+# ---
+
+# ## 💰 Full Budget Breakdown
+
+# | Category | Cost (INR) |
+# |---|---|
+# | Flights — return | ₹X,XXX |
+# | Hotel — {days} nights | ₹X,XXX |
+# | Food & dining | ₹X,XXX |
+# | Local transport | ₹X,XXX |
+# | Activities & entry fees | ₹X,XXX |
+# | Shopping & misc | ₹X,XXX |
+# | **Total Estimated** | **₹XX,XXX** |
+
+# ---
+
+# ## 💡 Top 5 Travel Tips for {dst}
+# Write 5 practical, specific tips — not generic advice.
+
+# ---
+
+# ## 🌤️ Weather & What to Pack
+# What weather to expect in {dst} from {dep} to {ret}.
+# Specific packing list for this trip.
+# """
+
+#     # Stream the itinerary text
+#     for token in _stream_generate(prompt):
+#         yield token
+
+#     # ── Step 3: append hidden JSON tag for the frontend map ───────────────────
+#     if locations:
+#         json_str = json.dumps(locations, ensure_ascii=False)
+#         yield f"\n\n<!--LOCATIONS_JSON:{json_str}-->"
+
+
+
+import json
+import re
+import math
+import time
+import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MODEL =os.getenv("OLLAMA_MODEL")
+
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_HEADERS = {"User-Agent": "ai-travel-agent/1.0"}
+
+MAX_DISTANCE_KM = 60
+
+
+def _stream_generate(prompt: str):
+    r = requests.post(
+        "http://localhost:11434/api/generate",
+        json={"model": MODEL, "prompt": prompt, "stream": True},
+        stream=True,
+        timeout=300,
+    )
+    r.raise_for_status()
+    for line in r.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        try:
+            chunk = json.loads(line)
+            token = chunk.get("response", "")
+            if token:
+                yield token
+        except Exception:
+            continue
+
+
+def _generate_full(prompt: str) -> str:
+    r = requests.post(
+        "http://localhost:11434/api/generate",
+        json={"model": MODEL, "prompt": prompt, "stream": False},
+        timeout=120,
+    )
+    r.raise_for_status()
+    return r.json().get("response", "").strip()
+
+
+def _extract_json_array(text: str) -> list:
+    text = re.sub(r"```(?:json)?|```", "", text).strip()
+    try:
+        d = json.loads(text)
+        if isinstance(d, list):
+            return d
+    except Exception:
+        pass
+    m = re.search(r"\[[\s\S]*\]", text)
+    if m:
+        try:
+            d = json.loads(m.group())
+            if isinstance(d, list):
+                return d
+        except Exception:
+            pass
+    return []
+
+
+def _haversine_km(lat1, lng1, lat2, lng2) -> float:
+    R = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+def _geocode(query: str):
+    """Real geocoding via Nominatim (OpenStreetMap) — free, no API key."""
+    try:
+        r = requests.get(
+            NOMINATIM_URL,
+            params={"q": query, "format": "json", "limit": 1},
+            headers=NOMINATIM_HEADERS,
+            timeout=10,
+        )
+        r.raise_for_status()
+        data = r.json()
+        if data:
+            return float(data[0]["lat"]), float(data[0]["lon"]), data[0].get("display_name", query)
+    except Exception as e:
+        print(f"[GEOCODE] failed for '{query}': {e}")
+    return None
+
+
+def _get_destination_anchor(dst: str):
+    """Get the real-world center coordinates of the destination city."""
+    geo = _geocode(dst)
+    if geo:
+        lat, lng, _ = geo
+        return lat, lng
+    return None, None
+
+
+def _get_locations_json(dst: str, hotels: str, days: int) -> list:
+    """
+    Step 1: ask the LLM to NAME real hotels/attractions (no coordinates).
+    Step 2: geocode each name via Nominatim, anchored to the destination city.
+    Step 3: discard anything too far from the destination anchor.
+    """
+    name_prompt = f"""Destination: {dst}
+
+Hotel options to choose from:
+{hotels}
+
+I am about to write a {days}-day itinerary for {dst}. List ONLY real-world place NAMES (no coordinates) to pin on a map:
+1. The single best hotel from the list above (pick one) — use its exact name.
+2. 6 to 10 well-known REAL attractions, landmarks, beaches, markets, or famous restaurant areas that are actually located in {dst} — places a real {days}-day itinerary for {dst} would visit.
+
+Return ONLY a raw JSON array, nothing else. No markdown, no explanation.
+
+Format exactly like this:
+[
+  {{"name":"Exact Hotel Name","type":"hotel"}},
+  {{"name":"Attraction Name","type":"attraction"}},
+  {{"name":"Restaurant or Food Area Name","type":"restaurant"}}
+]
+
+type must be one of: hotel, attraction, restaurant, transport, other.
+Output ONLY the JSON array now:
+"""
+    try:
+        raw = _generate_full(name_prompt)
+        named = _extract_json_array(raw)
+    except Exception as e:
+        print(f"[ITINERARY] Name list failed: {e}")
+        return []
+
+    if not named:
+        return []
+
+    anchor_lat, anchor_lng = _get_destination_anchor(dst)
+
+    clean = []
+    for item in named:
+        if not isinstance(item, dict) or not item.get("name"):
+            continue
+        name = item["name"].strip()
+        place_type = item.get("type", "other")
+
+        geo = _geocode(f"{name}, {dst}")
+        if not geo:
+            geo = _geocode(name)
+        if not geo:
+            continue
+
+        lat, lng, display_name = geo
+
+        if anchor_lat is not None:
+            dist = _haversine_km(anchor_lat, anchor_lng, lat, lng)
+            if dist > MAX_DISTANCE_KM:
+                print(f"[ITINERARY] Discarding '{name}' — {dist:.0f}km from {dst}")
+                continue
+
+        clean.append({
+            "name": name,
+            "type": place_type,
+            "lat": lat,
+            "lng": lng,
+            "address": display_name,
+        })
+
+        time.sleep(1)  # respect Nominatim's 1 request/sec rate limit
+
+    return clean
 
 
 def build_itnerary(data: dict, flights: str, hotels: str):
-    src  = data.get("source", "")
-    dst  = data.get("destination", "")
-    dep  = data.get("departure_date", "")
-    ret  = data.get("return_date", "")
-    days = data.get("days", 3)
+    src    = data.get("source", "")
+    dst    = data.get("destination", "")
+    dep    = data.get("departure_date", "")
+    ret    = data.get("return_date", "")
+    days   = data.get("days", 3)
+    budget = data.get("budget", "") or ""
 
+    budget_section = ""
+    if budget:
+        budget_section = f"""
+## 💰 Budget Constraint
+The user's total budget is **{budget}**. Throughout this itinerary:
+- Choose the flight and hotel that best fit within this budget.
+- Suggest free or low-cost activities where possible.
+- Flag any recommendation that strains the budget with a ⚠️ note.
+- Include a realistic budget breakdown showing how the {budget} is allocated.
+"""
+
+    # ── Step 1: get real, geocoded coordinates for hotel + attractions ────────
+    locations = _get_locations_json(dst, hotels, days)
+
+    place_names_hint = ""
+    if locations:
+        names = ", ".join(f'"{l["name"]}"' for l in locations)
+        place_names_hint = (
+            f"\nIMPORTANT: When mentioning the hotel or attractions below, "
+            f"use these EXACT names so they match the map: {names}\n"
+        )
+
+    # ── Step 2: build the itinerary text ─────────────────────────────────────
     prompt = f"""You are a warm, expert travel planner. Write a complete, detailed travel itinerary in Markdown.
 Be specific, practical, and conversational — like a knowledgeable friend planning this trip for someone.
 Never skip any day. Never say "etc" or "and so on".
@@ -843,13 +1727,15 @@ TRIP:
 - From: {src} → To: {dst}
 - Departure: {dep} | Return: {ret}
 - Duration: {days} days
+{f"- Total Budget: {budget}" if budget else ""}
 
 FLIGHTS AVAILABLE:
 {flights}
 
 HOTELS AVAILABLE:
 {hotels}
-
+{place_names_hint}
+{budget_section}
 ---
 
 # ✈️ {src} → {dst} | {dep} – {ret} ({days} Days)
@@ -857,14 +1743,14 @@ HOTELS AVAILABLE:
 ---
 
 ## 🛫 Your Flights
-Pick the best departure and return flight from the list above.
+Pick the best departure and return flight from the list above{f" that fits within the {budget} budget" if budget else ""}.
 Show: **Airline · Flight No · Time · Duration · Price**
 Give one sentence on why you picked it.
 
 ---
 
 ## 🏨 Your Hotel
-Pick the best hotel from the list above.
+Pick the best hotel from the list above (use the exact name from the hint if provided){f" that fits within the {budget} budget" if budget else ""}.
 Show: **Hotel Name · Price/night · Total ({days} nights)**
 Give one sentence on why it suits this trip.
 
@@ -872,6 +1758,8 @@ Give one sentence on why it suits this trip.
 
 ## 📅 Day-by-Day Plan
 Write EVERY day. Day 1 through Day {days}. No exceptions.
+When mentioning attractions, use the exact names from the hint above where relevant.
+{"Prefer free or low-cost activities to stay within budget." if budget else ""}
 
 ### Day 1 — Arrival in {dst}
 **🌅 Morning:** [arrival + check-in + first impressions]
@@ -920,6 +1808,8 @@ Practical transport guide covering:
 | Activities & entry fees | ₹X,XXX |
 | Shopping & misc | ₹X,XXX |
 | **Total Estimated** | **₹XX,XXX** |
+{f"| **User Budget** | **{budget}** |" if budget else ""}
+{f"| **Remaining / Over** | ₹ (calculate difference) |" if budget else ""}
 
 ---
 
@@ -933,21 +1823,10 @@ What weather to expect in {dst} from {dep} to {ret}.
 Specific packing list for this trip.
 """
 
-    r = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": MODEL, "prompt": prompt, "stream": True},
-        stream=True,
-        timeout=300,
-    )
-    r.raise_for_status()
+    for token in _stream_generate(prompt):
+        yield token
 
-    for line in r.iter_lines(decode_unicode=True):
-        if not line:
-            continue
-        try:
-            chunk = json.loads(line)
-            token = chunk.get("response", "")
-            if token:
-                yield token
-        except Exception:
-            continue
+    # ── Step 3: append hidden JSON tag for the frontend map ──────────────────
+    if locations:
+        json_str = json.dumps(locations, ensure_ascii=False)
+        yield f"\n\n<!--LOCATIONS_JSON:{json_str}-->"
